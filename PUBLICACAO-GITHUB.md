@@ -2,12 +2,14 @@
 
 As páginas deste projeto são documentos estáticos em português, preparados a partir do funcionamento do Dose 1.7.1. Não hospedam o aplicativo nem recebem seus dados de medicamentos.
 
+Publicado em 9 de novembro de 2026: [repositório wberaldo/dose](https://github.com/wberaldo/dose), branch `main`, pasta `/docs`. A apresentação, a política e os termos foram abertos e conferidos no site público.
+
 ## Publicar o site
 
 1. Envie o histórico público do projeto para um repositório sob seu controle no GitHub.
 2. No repositório, abra **Settings → Pages**.
 3. Em **Build and deployment → Source**, selecione **Deploy from a branch**.
-4. Selecione a branch que recebeu os commits e a pasta **/docs**. Salve.
+4. Selecione a branch **main** e a pasta **/docs**. Salve.
 5. Aguarde a publicação e utilize o endereço HTTPS efetivamente exibido pelo GitHub. Não preencha o Google Cloud com um endereço que ainda não foi publicado.
 
 O Pages é disponibilizado pelo GitHub Free em repositórios públicos. Esta opção publica apenas `docs/`. A pasta contém `.nojekyll`, HTML, CSS e um ícone SVG, sem build adicional ou workflow personalizado. O repositório público mantém apenas código e documentação; a chave de assinatura e os dados pessoais não entram no Git.
@@ -21,10 +23,10 @@ Use o mesmo projeto do cliente Android configurado no app. O endereço base é o
 | App name | Dose |
 | User support email | welberaldo@gmail.com |
 | App logo | Pode permanecer vazio |
-| Application home page | Endereço base do site publicado |
-| Application privacy policy link | `privacidade.html` no mesmo endereço base |
-| Application terms of service link | `termos.html` no mesmo endereço base |
-| Authorized domains | Host real do site publicado, sem `https://` ou caminho, se aceito pelo painel |
+| Application home page | https://wberaldo.github.io/dose/ |
+| Application privacy policy link | https://wberaldo.github.io/dose/privacidade.html |
+| Application terms of service link | https://wberaldo.github.io/dose/termos.html |
+| Authorized domains | `wberaldo.github.io`, sem protocolo ou caminho, conforme a validação do painel |
 | Developer contact information | welberaldo@gmail.com |
 
 Não cadastre `Dose.com.br` se esse domínio não estiver sob seu controle. O identificador do domínio autorizado deve ser aquele exigido pelo Google para o endereço efetivamente publicado. Se houver validação de domínio ou marca, siga a mensagem do painel; publicar as páginas não garante aprovação automática.

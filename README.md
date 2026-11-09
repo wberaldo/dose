@@ -4,6 +4,11 @@ Aplicativo Android de uso pessoal para organizar medicamentos, configurar lembre
 
 Versão do aplicativo: **1.7.1**. Pacote: `br.com.well.dose`.
 
+Repositório: [wberaldo/dose](https://github.com/wberaldo/dose). Site publicado: [wberaldo.github.io/dose](https://wberaldo.github.io/dose/).
+
+- [Política de privacidade](https://wberaldo.github.io/dose/privacidade.html)
+- [Termos de uso](https://wberaldo.github.io/dose/termos.html)
+
 ## Guia e validação
 
 - [Instalação, recursos e compilação](LEIA-ME.md)
@@ -12,7 +17,7 @@ Versão do aplicativo: **1.7.1**. Pacote: `br.com.well.dose`.
 - [Validação da versão 1.7.1 e limites conhecidos](VALIDACAO.md)
 - [Histórico de alterações](CHANGELOG.md)
 
-As páginas de apresentação, privacidade e termos estão em `docs/`. O GitHub Pages deve publicar somente essa pasta. O site é estático e utiliza arquivos locais, sem instalação de dependências, servidor de aplicação, formulário ou integração com dados de medicamentos.
+As páginas de apresentação, privacidade e termos estão em `docs/`. O GitHub Pages publica essa pasta a partir da branch `main`. O site é estático e utiliza arquivos locais, sem instalação de dependências, servidor de aplicação, formulário ou integração com dados de medicamentos.
 
 ## Compilar
 

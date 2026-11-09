@@ -66,4 +66,4 @@ Seleção/cancelamento da conta Google, consentimento, emissão e renovação de
 
 Os hashes, certificado e tamanho exatos estão em `verificacao/1.7.1/apk-integrity.json` e `apk-signature.txt`. A atualização real preservou medicamentos, doses, vínculos de importação, relatórios e cancelamentos. Instale como atualização, sem desinstalar.
 
-O histórico Git contém código, testes, documentação e o ID OAuth público. A chave original fica em `signing/`, somente no ZIP pessoal. Senhas Google, tokens, banco pessoal, relatórios pessoais e importações pessoais não foram incluídos. Não há remoto GitHub nem push; o ZIP inclui o histórico Git e o patch para aplicar em um repositório existente.
+O histórico Git contém código, testes, documentação e o ID OAuth público. A chave original fica em `signing/`, somente no ZIP pessoal. Senhas Google, tokens, banco pessoal, relatórios pessoais e importações pessoais não foram incluídos. Na validação original da versão 1.7.1 ainda não havia remoto GitHub nem push; o ZIP inclui o histórico Git e o patch. O código foi posteriormente publicado em [wberaldo/dose](https://github.com/wberaldo/dose), conforme o [README](README.md).

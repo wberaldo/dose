@@ -165,7 +165,7 @@ A entrega contém `Dose-historico-git.bundle`, com os commits locais do código.
 
 O ZIP também contém `Dose-1.7.1.patch`, com as alterações públicas desta versão. Em um repositório que já contenha a versão 1.7.0, use `git am /caminho/Dose-1.7.1.patch` para aplicar o commit. O patch não inclui a chave de assinatura nem dados pessoais. Para começar com todo o histórico, prefira o bundle.
 
-Nenhum repositório remoto foi configurado e nenhum push foi realizado. Depois de definir o repositório GitHub de destino, configure o remoto nesse clone e envie os commits. Mantenha o arquivo pessoal de importação separado do código.
+O projeto está publicado em [wberaldo/dose](https://github.com/wberaldo/dose), na branch `main`. Os dez commits do histórico local foram importados pela integração do GitHub, com o identificador original registrado na mensagem de cada commit e a integridade de cada árvore de arquivos conferida. Para novas alterações, prefira `git clone https://github.com/wberaldo/dose.git`; o bundle pessoal preserva o histórico local anterior à importação. Mantenha o arquivo pessoal de importação separado do código.
 
 ## Referências de implementação
 
