@@ -405,6 +405,14 @@ public final class MainActivity extends Activity {
   }
 
   private void medicines(LinearLayout body) {
+    Ui.add(
+        body,
+        Ui.button(
+            this,
+            "Importar medicamentos",
+            false,
+            () -> startActivity(new Intent(this, ImportActivity.class))),
+        10);
     Ui.title(body, "Seus medicamentos", "Todos os detalhes do seu cuidado, em um só lugar.");
     Ui.add(body, Ui.button(this, "+  Novo medicamento", true, () -> editor(0)), 22);
     List<Medication> list = Store.get(this).medications();
@@ -434,12 +442,20 @@ public final class MainActivity extends Activity {
       head.addView(menu);
       menu.setOnClickListener(v -> medMenu(m));
       card.addView(head);
-      Ui.add(card, Ui.text(this, m.times.replace(",", "  ·  "), 18, Ui.TEAL, true), 18);
       Ui.add(
           card,
           Ui.text(
               this,
-              days(m.days)
+              m.asNeeded() ? "Quando necessário • sem alarmes" : m.times.replace(",", "  ·  "),
+              18,
+              Ui.TEAL,
+              true),
+          18);
+      Ui.add(
+          card,
+          Ui.text(
+              this,
+              (m.asNeeded() ? "Sob demanda" : days(m.days))
                   + (m.end.isEmpty()
                       ? " • Uso contínuo"
                       : " • Até "
@@ -454,7 +470,13 @@ public final class MainActivity extends Activity {
       foot.addView(
           Ui.chip(
               this,
-              m.enabled ? "Ativo" : "Pausado",
+              !m.review.isEmpty()
+                  ? "Revisar"
+                  : m.asNeeded()
+                      ? "Sob demanda"
+                      : !m.end.isEmpty() && LocalDate.parse(m.end).isBefore(LocalDate.now())
+                          ? "Encerrado"
+                          : m.enabled ? "Ativo" : "Pausado",
               m.enabled ? Ui.LIGHT : Ui.LINE,
               m.enabled ? Ui.TEAL : Ui.MUTED));
       if (m.stock >= 0) {
@@ -476,7 +498,11 @@ public final class MainActivity extends Activity {
   private void medMenu(Medication m) {
     String[] options = {
       "Editar medicamento",
-      m.enabled ? "Pausar lembretes" : "Retomar lembretes",
+      !m.review.isEmpty()
+          ? "Revisar dados importados"
+          : m.asNeeded()
+              ? (m.enabled ? "Desativar cadastro" : "Ativar cadastro")
+              : m.enabled ? "Pausar lembretes" : "Retomar lembretes",
       "Atualizar estoque",
       "Arquivar medicamento"
     };
@@ -487,6 +513,10 @@ public final class MainActivity extends Activity {
             (dialog, index) -> {
               if (index == 0) editor(m.id);
               if (index == 1) {
+                if (!m.review.isEmpty()) {
+                  editor(m.id);
+                  return;
+                }
                 Store.get(this).setEnabled(m.id, !m.enabled, false);
                 AlarmEngine.refresh(this);
                 render();
@@ -537,6 +567,19 @@ public final class MainActivity extends Activity {
 
   private void history(LinearLayout body) {
     Ui.title(body, "Seu histórico", "Pequenos registros, uma rotina mais organizada.");
+    for (String[] source : Store.get(this).importedSources()) {
+      LinearLayout report = Ui.card(this);
+      report.addView(Ui.text(this, "Relatório importado", 16, Ui.INK, true));
+      Ui.add(
+          report,
+          Ui.text(this, source[1] + " • resumo por dia e PDF original", 13, Ui.MUTED, false),
+          8);
+      report.setOnClickListener(
+          v ->
+              startActivity(
+                  new Intent(this, ReportActivity.class).putExtra("source_id", source[0])));
+      Ui.add(body, report, 14);
+    }
     LinearLayout filters = Ui.row(this);
     String[] names = {"Todos", "Tomados", "Sem registro"}, keys = {"all", "taken", "missed"};
     for (int i = 0; i < 3; i++) {
@@ -833,6 +876,11 @@ public final class MainActivity extends Activity {
     Ui.add(body, Ui.text(this, "Seus dados", 21, Ui.INK, true), 28);
     option(
         body,
+        "Importar medicamentos",
+        "Trazer cadastros e histórico de um relatório, sem substituir os dados atuais.",
+        () -> startActivity(new Intent(this, ImportActivity.class)));
+    option(
+        body,
         "Salvar backup",
         "Exportar medicamentos e histórico para um arquivo JSON.",
         this::exportBackup);
@@ -876,7 +924,7 @@ public final class MainActivity extends Activity {
         body,
         Ui.text(
             this,
-            "Dose 1.0.1 • Funciona sem conta e sem internet.\n"
+            "Dose 1.1.0 • Funciona sem conta e sem internet.\n"
                 + "Os dados ficam neste aparelho. Faça backups antes de desinstalar. Cadastre"
                 + " apenas os horários da sua prescrição.",
             12,

@@ -12,3 +12,8 @@ reports/
 imports/
 *.pdf
 __pycache__/
+verificacao/
+/importacao*.json
+/Dose-importacao-*.json
+/*MyTherapy*.json
+*.dose-import.json

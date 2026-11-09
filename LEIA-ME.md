@@ -2,19 +2,42 @@
 
 Aplicativo nativo em português para organizar medicamentos e lembrar os horários das doses. Inspirado na proposta do CUCO, com nome, identidade visual e implementação próprios.
 
-## Atualizar da versão 1.0.0
+## Atualizar de versões anteriores
 
-Abra o APK 1.0.1 e escolha **Atualizar**. O pacote e a chave de assinatura são os mesmos; medicamentos, histórico, estoque e preferências permanecem no aparelho. Não desinstale a versão anterior para atualizar.
+Abra o APK 1.1.0 e escolha **Atualizar**. O pacote e a chave de assinatura são os mesmos; medicamentos, histórico, estoque e preferências permanecem no aparelho. Não desinstale a versão anterior para atualizar.
 
 ## Instalar e começar
 
-1. No celular, abra `Dose-1.0.1.apk` e siga a instalação. Se o Android solicitar, autorize a instalação de apps pela fonte usada para abrir o arquivo.
+1. No celular, abra `Dose-1.1.0.apk` e siga a instalação. Se o Android solicitar, autorize a instalação de apps pela fonte usada para abrir o arquivo.
 2. Abra o Dose e toque em **Cadastrar medicamento** ou **Remédios → Novo medicamento**.
 3. Informe nome, concentração se desejar, quantidade por dose, unidade, horários, dias da semana e período. Use os horários da sua prescrição.
 4. Na aba **Alertas**, ative **Notificações** e **Alarmes e lembretes**. Confira também **Alarme na tela bloqueada** e a configuração de bateria.
 5. Toque em **Testar alarme em 15 segundos**, bloqueie a tela e aguarde. O teste não registra uma dose nem altera o estoque. Para encerrar ou adiar, expanda a notificação ou toque nela. O teste oferece **Encerrar teste** e **Adiar** mesmo com a privacidade ativada; as notificações de medicamentos continuam protegendo seus detalhes.
 
 O app inicia vazio. Não importa nem presume medicamentos, doses ou horários pessoais.
+
+## Importar um relatório MyTherapy
+
+1. Instale a atualização do Dose sem desinstalar a versão anterior.
+2. Baixe o arquivo de importação `.json` preparado a partir do PDF.
+3. Abra **Remédios → Importar medicamentos**, ou **Alertas → Seus dados → Importar medicamentos**.
+4. Escolha o `.json`. Confira os cadastros selecionados e a quantidade de novos medicamentos que terão alarmes.
+5. Toque em **Importar** e confirme. Cadastros já existentes são mantidos; a importação não restaura nem substitui seu banco inteiro.
+
+O arquivo preserva nomes, quantidades, unidades, horários, dias da semana, observações, condições informadas e os estados ativo, pausado, encerrado, futuro ou sob demanda. Inícios de tratamento ausentes não são inventados. Os novos lembretes começam após importar. Quando o relatório informa apenas dias restantes, o término é calculado como **data de geração do relatório + dias restantes**, e esse cálculo aparece na prévia.
+
+Informações ambíguas ficam pausadas para revisão. Cadastros sob demanda não geram alarmes. O histórico mensal é mantido como resumo por dia, com estados confirmados, planejados, desconhecidos, ignorados ou interrompidos. Como esse gráfico não contém horas reais das tomadas, ele fica separado das confirmações feitas no Dose e não desconta estoque.
+
+Em **Histórico**, abra o relatório importado para ver o resumo e o PDF original. O novo backup também inclui os relatórios importados. Backups das versões anteriores continuam sendo aceitos.
+
+O conversor pode ser executado localmente com Python e `pdfplumber`:
+
+```bash
+python3 -m pip install pdfplumber
+python3 tools/convert_mytherapy.py relatorio.pdf imports/importacao.json
+```
+
+Ele reconhece o formato em português mostrado nesta entrega. Se não reconhecer uma legenda ou estrutura do gráfico, para a conversão em vez de adivinhar os estados. O limite é 1 MB para o PDF e 1,5 MB para o arquivo de importação. O arquivo contém dados de saúde e o PDF incorporado; mantenha-o fora do repositório de código.
 
 ## Notificações e alarmes
 
@@ -66,9 +89,9 @@ sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0' 'platform-tools'
 python3 tools/build.py --sdk /caminho/absoluto/android-sdk --test
 ```
 
-Requer Java 17 com o compilador (`java com.sun.tools.javac.Main`) e `keytool`, Python 3 e o SDK oficial. O APK assinado sai em `build/Dose-1.0.1.apk`.
+Requer Java 17 com o compilador (`java com.sun.tools.javac.Main`) e `keytool`, Python 3 e o SDK oficial. O APK assinado sai em `build/Dose-1.1.0.apk`.
 
-`signing/` contém a chave pessoal usada nesta versão e sua configuração local. Guarde essa pasta para assinar futuras atualizações compatíveis com o APK instalado. A chave e sua senha pertencem à entrega pessoal; não as publique em um repositório aberto. A compilação pelo Android Studio usa a configuração de assinatura escolhida no próprio Studio.
+`signing/` contém a chave pessoal usada nesta versão e sua configuração local. Guarde essa pasta para assinar futuras atualizações compatíveis com o APK instalado. A chave e sua senha pertencem à entrega pessoal; a pasta `signing/` não é versionada. Guarde a chave para gerar atualizações da instalação existente. A compilação pelo Android Studio usa a configuração de assinatura escolhida no próprio Studio.
 
 ### Testes em um emulador isolado
 
@@ -81,6 +104,14 @@ python3 tools/run_emulator_tests.py --sdk /caminho/absoluto/android-sdk --avd me
 
 O script de emulador usa uma imagem API 35, um AVD já criado e a porta local 5038 para o servidor ADB. Os relatórios ficam em `build/validation/`. Os dados de demonstração usados para inspecionar as telas são fictícios e não fazem parte do APK distribuído.
 
+Os testes do conversor usam exemplos fictícios e rodam com `python3 -m unittest discover -s tools -p 'test_convert_mytherapy.py' -v`.
+
+### Histórico Git
+
+A entrega contém `Dose-historico-git.bundle`, com os commits locais do código. Para recuperar o repositório, execute `git clone Dose-historico-git.bundle dose-codigo`. Dados pessoais, arquivos de importação, PDF e chaves de assinatura não fazem parte desse histórico. A pasta privada `signing/` está apenas no ZIP desta entrega.
+
+Nenhum repositório remoto foi configurado e nenhum push foi realizado. Depois de definir o repositório GitHub de destino, configure o remoto nesse clone e envie os commits. Mantenha o arquivo pessoal de importação separado do código.
+
 ## Referências de implementação
 
 - App de referência: https://play.google.com/store/apps/details?id=br.com.drcuco
@@ -90,4 +121,4 @@ O script de emulador usa uma imagem API 35, um AVD já criado e a porta local 50
 - Reprodução de toques e alertas: https://developer.android.com/reference/android/media/Ringtone
 - Restrições para tela cheia: https://developer.android.com/about/versions/14/behavior-changes-14
 
-Versão 1.0.1. Entrega pessoal instalável; não publicada na Play Store.
+Versão 1.1.0. Entrega pessoal instalável; não publicada na Play Store.

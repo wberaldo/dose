@@ -88,7 +88,7 @@ public final class AlarmEngine {
     boolean any = !db.doses("status='pending'", null, "id LIMIT 1").isEmpty();
     boolean active = false;
     for (Medication m : db.medications())
-      if (m.enabled) {
+      if (m.enabled && !m.asNeeded() && m.review.isEmpty()) {
         active = true;
         break;
       }

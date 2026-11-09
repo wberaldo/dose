@@ -17,7 +17,7 @@ public final class Store extends SQLiteOpenHelper {
   }
 
   private Store(Context c) {
-    super(c, "dose.db", null, 1);
+    super(c, "dose.db", null, 2);
   }
 
   @Override
@@ -32,7 +32,8 @@ public final class Store extends SQLiteOpenHelper {
             + " NOT NULL,amount REAL NOT NULL,unit TEXT NOT NULL,notes TEXT NOT NULL,times TEXT NOT"
             + " NULL,days INTEGER NOT NULL,start TEXT NOT NULL,end TEXT NOT NULL,enabled INTEGER"
             + " NOT NULL,color INTEGER NOT NULL,stock REAL NOT NULL,created INTEGER NOT"
-            + " NULL,archived INTEGER NOT NULL DEFAULT 0)");
+            + " NULL,archived INTEGER NOT NULL DEFAULT 0,kind TEXT NOT NULL DEFAULT 'scheduled',"
+            + "review TEXT NOT NULL DEFAULT '')");
     db.execSQL(
         "CREATE TABLE doses(id INTEGER PRIMARY KEY AUTOINCREMENT,med_id INTEGER NOT NULL REFERENCES"
             + " meds(id),local_key TEXT NOT NULL,scheduled INTEGER NOT NULL,expires INTEGER NOT"
@@ -44,11 +45,26 @@ public final class Store extends SQLiteOpenHelper {
     db.execSQL("CREATE INDEX dose_alert ON doses(status,next_alert)");
     db.execSQL("CREATE INDEX dose_schedule ON doses(scheduled)");
     db.execSQL("CREATE INDEX dose_med_schedule ON doses(med_id,scheduled)");
+    createImportTables(db);
   }
 
   @Override
   public void onUpgrade(SQLiteDatabase db, int old, int latest) {
-    throw new IllegalStateException("Unsupported database version");
+    if (old < 2) {
+      db.execSQL("ALTER TABLE meds ADD COLUMN kind TEXT NOT NULL DEFAULT 'scheduled'");
+      db.execSQL("ALTER TABLE meds ADD COLUMN review TEXT NOT NULL DEFAULT ''");
+      createImportTables(db);
+    }
+  }
+
+  private void createImportTables(SQLiteDatabase db) {
+    db.execSQL(
+        "CREATE TABLE import_sources(id TEXT PRIMARY KEY,label TEXT NOT NULL,created INTEGER NOT"
+            + " NULL,data TEXT NOT NULL)");
+    db.execSQL(
+        "CREATE TABLE import_links(source_id TEXT NOT NULL REFERENCES import_sources(id),item_key"
+            + " TEXT NOT NULL,med_id INTEGER NOT NULL REFERENCES meds(id),PRIMARY"
+            + " KEY(source_id,item_key))");
   }
 
   private Medication med(Cursor c) {
@@ -68,6 +84,8 @@ public final class Store extends SQLiteOpenHelper {
     m.stock = d(c, "stock");
     m.created = l(c, "created");
     m.archived = l(c, "archived") == 1;
+    m.kind = s(c, "kind");
+    m.review = s(c, "review");
     return m;
   }
 
@@ -146,6 +164,8 @@ public final class Store extends SQLiteOpenHelper {
     v.put("stock", m.stock);
     v.put("created", m.created);
     v.put("archived", m.archived ? 1 : 0);
+    v.put("kind", m.kind);
+    v.put("review", m.review);
     return v;
   }
 
@@ -165,6 +185,10 @@ public final class Store extends SQLiteOpenHelper {
             "med_id=? AND status='pending' AND scheduled>? AND last_alert=0",
             new String[] {"" + m.id, "" + now});
       }
+      if (!m.enabled || m.asNeeded() || !m.review.isEmpty())
+        db.execSQL(
+            "UPDATE doses SET status='cancelled',next_alert=0 WHERE med_id=? AND status='pending'",
+            new Object[] {m.id});
       db.setTransactionSuccessful();
       return m.id;
     } finally {
@@ -173,6 +197,10 @@ public final class Store extends SQLiteOpenHelper {
   }
 
   public void setEnabled(long id, boolean enabled, boolean archive) {
+    Medication current = medication(id);
+    if (enabled && current != null && !current.review.isEmpty())
+      throw new IllegalArgumentException(
+          "Revise os dados importados antes de ativar este medicamento.");
     SQLiteDatabase db = getWritableDatabase();
     db.beginTransaction();
     try {
@@ -407,11 +435,13 @@ public final class Store extends SQLiteOpenHelper {
   public JSONObject exportJson() throws JSONException {
     JSONObject root = new JSONObject();
     root.put("format", "dose-backup");
-    root.put("version", 1);
+    root.put("version", 2);
     root.put("exported_at", System.currentTimeMillis());
     root.put("zone", ZoneId.systemDefault().getId());
     root.put("meds", tableJson("meds"));
     root.put("doses", tableJson("doses"));
+    root.put("import_sources", tableJson("import_sources"));
+    root.put("import_links", tableJson("import_links"));
     return root;
   }
 
@@ -439,7 +469,8 @@ public final class Store extends SQLiteOpenHelper {
   }
 
   public void importJson(JSONObject root) throws JSONException {
-    if (!"dose-backup".equals(root.optString("format")) || root.optInt("version") != 1)
+    if (!"dose-backup".equals(root.optString("format"))
+        || !Arrays.asList(1, 2).contains(root.optInt("version")))
       throw new IllegalArgumentException("Arquivo de backup incompatível.");
     JSONArray meds = root.getJSONArray("meds"), doses = root.getJSONArray("doses");
     if (meds.length() > 500 || doses.length() > 100000)
@@ -459,6 +490,11 @@ public final class Store extends SQLiteOpenHelper {
       m.start = j.getString("start");
       m.end = j.getString("end");
       m.stock = j.getDouble("stock");
+      m.enabled = j.getInt("enabled") == 1;
+      m.kind = j.optString("kind", "scheduled");
+      m.review = j.optString("review", "");
+      j.put("kind", m.kind);
+      j.put("review", m.review);
       ScheduleRules.validate(m);
       if (m.id < 1
           || m.id >= Alerts.SERVICE_ID
@@ -495,9 +531,32 @@ public final class Store extends SQLiteOpenHelper {
           || !Arrays.asList(0, 1).contains(j.getInt("snoozed")))
         throw new IllegalArgumentException("Doses inválidas no backup.");
     }
+    JSONArray sources = root.optJSONArray("import_sources"),
+        links = root.optJSONArray("import_links");
+    if (sources == null) sources = new JSONArray();
+    if (links == null) links = new JSONArray();
+    if (sources.length() > 500 || links.length() > 100000)
+      throw new IllegalArgumentException("Histórico de importação muito grande.");
+    Set<String> sourceIds = new HashSet<>(), linkKeys = new HashSet<>();
+    for (int i = 0; i < sources.length(); i++) {
+      JSONObject j = sources.getJSONObject(i);
+      MedicationImport parsed = new MedicationImport(j.getString("data"), LocalDate.now());
+      if (!parsed.id.equals(j.getString("id")) || !sourceIds.add(parsed.id))
+        throw new IllegalArgumentException("Relatório de origem inválido.");
+    }
+    for (int i = 0; i < links.length(); i++) {
+      JSONObject j = links.getJSONObject(i);
+      if (!sourceIds.contains(j.getString("source_id"))
+          || !ids.contains(j.getLong("med_id"))
+          || !j.getString("item_key").matches("[a-f0-9]{64}")
+          || !linkKeys.add(j.getString("source_id") + j.getString("item_key")))
+        throw new IllegalArgumentException("Vínculo de importação inválido.");
+    }
     SQLiteDatabase db = getWritableDatabase();
     db.beginTransaction();
     try {
+      db.delete("import_links", null, null);
+      db.delete("import_sources", null, null);
       db.delete("doses", null, null);
       db.delete("meds", null, null);
       restoreTable(
@@ -519,7 +578,9 @@ public final class Store extends SQLiteOpenHelper {
             "color",
             "stock",
             "created",
-            "archived"
+            "archived",
+            "kind",
+            "review"
           });
       restoreTable(
           db,
@@ -543,6 +604,8 @@ public final class Store extends SQLiteOpenHelper {
             "color",
             "amount"
           });
+      restoreTable(db, "import_sources", sources, new String[] {"id", "label", "created", "data"});
+      restoreTable(db, "import_links", links, new String[] {"source_id", "item_key", "med_id"});
       db.setTransactionSuccessful();
     } finally {
       db.endTransaction();
@@ -562,6 +625,106 @@ public final class Store extends SQLiteOpenHelper {
         } else v.put(k, value.toString());
       }
       db.insertOrThrow(table, null, v);
+    }
+  }
+
+  private long equivalent(Medication incoming) {
+    try (Cursor c = getReadableDatabase().rawQuery("SELECT * FROM meds", null)) {
+      while (c.moveToNext()) {
+        Medication m = med(c);
+        if (m.name.trim().equalsIgnoreCase(incoming.name.trim())
+            && m.strength.equalsIgnoreCase(incoming.strength)
+            && m.unit.equalsIgnoreCase(incoming.unit)
+            && m.amount == incoming.amount
+            && m.times.equals(incoming.times)
+            && m.days == incoming.days
+            && m.kind.equals(incoming.kind)
+            && m.end.equals(incoming.end)) return m.id;
+      }
+    }
+    return 0;
+  }
+
+  public void previewImport(MedicationImport report) {
+    for (MedicationImport.Item item : report.items) {
+      try (Cursor c =
+          getReadableDatabase()
+              .rawQuery(
+                  "SELECT med_id FROM import_links WHERE source_id=? AND item_key=?",
+                  new String[] {report.id, item.key})) {
+        item.existingId = c.moveToFirst() ? c.getLong(0) : equivalent(item.medication);
+      }
+      if (item.existingId == 0 && item.medication.enabled && !item.confirmed) {
+        try (Cursor c = getReadableDatabase().rawQuery("SELECT name FROM meds", null)) {
+          while (c.moveToNext())
+            if (c.getString(0).equalsIgnoreCase(item.medication.name)) {
+              item.medication.review =
+                  "Já existe um cadastro com este nome e outros dados. Revise para evitar lembretes"
+                      + " duplicados.";
+              item.medication.enabled = false;
+              break;
+            }
+        }
+      }
+    }
+  }
+
+  public int[] mergeImport(MedicationImport report, long now) throws JSONException {
+    for (MedicationImport.Item item : report.items)
+      if (item.selected) ScheduleRules.validate(item.medication);
+    int added = 0, kept = 0;
+    SQLiteDatabase db = getWritableDatabase();
+    db.beginTransaction();
+    try {
+      ContentValues source = new ContentValues();
+      source.put("id", report.id);
+      source.put("label", report.label);
+      source.put("created", now);
+      source.put("data", report.original.toString());
+      db.insertWithOnConflict("import_sources", null, source, SQLiteDatabase.CONFLICT_IGNORE);
+      for (MedicationImport.Item item : report.items) {
+        if (!item.selected) continue;
+        long id;
+        try (Cursor c =
+            db.rawQuery(
+                "SELECT med_id FROM import_links WHERE source_id=? AND item_key=?",
+                new String[] {report.id, item.key})) {
+          id = c.moveToFirst() ? c.getLong(0) : equivalent(item.medication);
+        }
+        if (id == 0) {
+          item.medication.created = now;
+          id = db.insertOrThrow("meds", null, values(item.medication));
+          added++;
+        } else kept++;
+        ContentValues link = new ContentValues();
+        link.put("source_id", report.id);
+        link.put("item_key", item.key);
+        link.put("med_id", id);
+        db.insertWithOnConflict("import_links", null, link, SQLiteDatabase.CONFLICT_IGNORE);
+      }
+      db.setTransactionSuccessful();
+      return new int[] {added, kept};
+    } finally {
+      db.endTransaction();
+    }
+  }
+
+  public List<String[]> importedSources() {
+    List<String[]> rows = new ArrayList<>();
+    try (Cursor c =
+        getReadableDatabase()
+            .rawQuery("SELECT id,label,created FROM import_sources ORDER BY created DESC", null)) {
+      while (c.moveToNext())
+        rows.add(new String[] {c.getString(0), c.getString(1), c.getString(2)});
+    }
+    return rows;
+  }
+
+  public JSONObject importedSource(String id) throws JSONException {
+    try (Cursor c =
+        getReadableDatabase()
+            .rawQuery("SELECT data FROM import_sources WHERE id=?", new String[] {id})) {
+      return c.moveToFirst() ? new JSONObject(c.getString(0)) : null;
     }
   }
 }

@@ -1,5 +1,17 @@
 # Alterações
 
+## 1.1.0
+
+- Importação de medicamentos com prévia, seleção e revisão antes de salvar.
+- Importação por adição, mantendo cadastros, estoque e histórico existentes.
+- Prevenção de duplicatas em reimportações.
+- Cadastros pausados, encerrados, futuros e sob demanda preservados.
+- Término calculado pela data do relatório mais os dias restantes, quando informado.
+- Histórico mensal importado separado das tomadas locais, sem criar horas reais ausentes na fonte.
+- Consulta do resumo e do PDF original dentro do app.
+- Migração do banco e compatibilidade com backups antigos.
+- Conversor MyTherapy em Python, sem dados de pacientes no código.
+
 ## 1.0.1
 
 - Centraliza o nome e o número do dia dentro do destaque do calendário.

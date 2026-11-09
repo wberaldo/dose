@@ -14,13 +14,23 @@ public final class EditorActivity extends Activity {
   private Medication med;
   private EditText name, strength, amount, notes, stock;
   private Spinner unit;
+  private CheckBox asNeeded, activate, reviewed;
+  private String originalReview = "";
   private LinearLayout timesBox, daysBox, colorBox;
   private final SortedSet<LocalTime> times = new TreeSet<>();
   private int days = 127, color = 0xFF137C70;
   private String start, end;
   private TextView startButton, endButton;
   private final String[] units = {
-    "comprimido(s)", "cápsula(s)", "gota(s)", "mL", "dose(s)", "sachê(s)", "aplicação(ões)"
+    "comprimido(s)",
+    "cápsula(s)",
+    "gota(s)",
+    "mL",
+    "dose(s)",
+    "sachê(s)",
+    "aplicação(ões)",
+    "borrifo(s)",
+    "unidade(s)"
   };
   private final int[] colors = {
     0xFF137C70, 0xFF6488BD, 0xFF9B75B4, 0xFFCC8653, 0xFFBF6F87, 0xFF687C48
@@ -40,6 +50,7 @@ public final class EditorActivity extends Activity {
       finish();
       return;
     }
+    originalReview = med.review;
     String restoredTimes = saved == null ? med.times : saved.getString("times", med.times);
     if (!restoredTimes.isEmpty()) times.addAll(ScheduleRules.parseTimes(restoredTimes));
     days = saved == null ? med.days : saved.getInt("days", med.days);
@@ -65,6 +76,11 @@ public final class EditorActivity extends Activity {
     LinearLayout body = Ui.scroll(root);
     Ui.add(body, Ui.chip(this, "CUIDADO QUE VIRA ROTINA", Ui.LIGHT, Ui.TEAL), 8);
     Ui.title(body, "Vamos organizar?", "Use os dados e os horários da sua prescrição.");
+    if (!med.review.isEmpty())
+      Ui.add(
+          body,
+          Ui.text(this, "Dados importados para revisar\n" + med.review, 14, Ui.AMBER, true),
+          18);
     section(body, "O medicamento");
     name =
         field(
@@ -109,6 +125,12 @@ public final class EditorActivity extends Activity {
     Ui.add(b, unit, 9);
     Ui.add(body, two, 0);
     section(body, "Quando lembrar você");
+    asNeeded = new CheckBox(this);
+    asNeeded.setText("Usar somente quando necessário, sem horários fixos");
+    asNeeded.setTextColor(Ui.INK);
+    asNeeded.setChecked(
+        saved == null ? med.asNeeded() : saved.getBoolean("as_needed", med.asNeeded()));
+    Ui.add(body, asNeeded, 10);
     Ui.add(body, Ui.text(this, "Horários fixos", 15, Ui.INK, true), 2);
     Ui.add(
         body,
@@ -127,7 +149,7 @@ public final class EditorActivity extends Activity {
     daysBox = Ui.row(this);
     Ui.add(body, daysBox, 12);
     renderDays();
-    Ui.add(body, Ui.text(this, "Período do tratamento", 14, Ui.INK, true), 24);
+    Ui.add(body, Ui.text(this, "Período dos lembretes", 14, Ui.INK, true), 24);
     startButton = Ui.button(this, "", false, () -> date(true));
     Ui.add(body, startButton, 10);
     endButton = Ui.button(this, "", false, () -> date(false));
@@ -178,6 +200,18 @@ public final class EditorActivity extends Activity {
     colorBox = Ui.row(this);
     Ui.add(body, colorBox, 12);
     renderColors();
+    if (!med.review.isEmpty()) {
+      reviewed = new CheckBox(this);
+      reviewed.setText("Conferi os dados importados com minha receita");
+      reviewed.setTextColor(Ui.INK);
+      reviewed.setChecked(saved != null && saved.getBoolean("reviewed"));
+      Ui.add(body, reviewed, 20);
+    }
+    activate = new CheckBox(this);
+    activate.setText("Manter este cadastro ativo após salvar");
+    activate.setTextColor(Ui.INK);
+    activate.setChecked(saved == null ? med.enabled : saved.getBoolean("activate", med.enabled));
+    Ui.add(body, activate, 14);
     Ui.add(body, Ui.gap(this, 15), 0);
     LinearLayout footer = Ui.column(this);
     footer.setPadding(dp(22), dp(12), dp(22), dp(14));
@@ -279,7 +313,8 @@ public final class EditorActivity extends Activity {
   }
 
   private void date(boolean first) {
-    LocalDate current = LocalDate.parse(first ? start : (end.isEmpty() ? start : end));
+    String value = first ? start : (end.isEmpty() ? start : end);
+    LocalDate current = value.isEmpty() ? LocalDate.now() : LocalDate.parse(value);
     new DatePickerDialog(
             this,
             (picker, y, m, d) -> {
@@ -296,7 +331,10 @@ public final class EditorActivity extends Activity {
 
   private void dates() {
     DateTimeFormatter f = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-    startButton.setText("Início: " + LocalDate.parse(start).format(f));
+    startButton.setText(
+        start.isEmpty()
+            ? "Primeiro dia não informado"
+            : "Início dos lembretes: " + LocalDate.parse(start).format(f));
     endButton.setText(
         end.isEmpty() ? "Sem data de término" : "Término: " + LocalDate.parse(end).format(f));
   }
@@ -338,9 +376,18 @@ public final class EditorActivity extends Activity {
       med.color = color;
       med.start = start;
       med.end = end;
+      med.kind = asNeeded.isChecked() ? "as_needed" : "scheduled";
+      med.enabled = activate.isChecked();
+      med.review = reviewed != null && !reviewed.isChecked() ? originalReview : "";
+      if (med.enabled && med.start.isEmpty() && !med.asNeeded())
+        med.start = LocalDate.now().toString();
       List<String> values = new ArrayList<>();
       for (LocalTime t : times) values.add(t.format(ScheduleRules.CLOCK));
       med.times = String.join(",", values);
+      if (med.asNeeded()) {
+        med.times = "";
+        med.days = 0;
+      }
       ScheduleRules.validate(med);
       synchronized (AlarmEngine.LOCK) {
         Store.get(this).save(med, System.currentTimeMillis());
@@ -369,6 +416,9 @@ public final class EditorActivity extends Activity {
     b.putString("amount", amount.getText().toString());
     b.putString("notes", notes.getText().toString());
     b.putString("stock", stock.getText().toString());
+    b.putBoolean("as_needed", asNeeded.isChecked());
+    b.putBoolean("activate", activate.isChecked());
+    if (reviewed != null) b.putBoolean("reviewed", reviewed.isChecked());
     b.putInt("unit", unit.getSelectedItemPosition());
     b.putInt("days", days);
     b.putInt("color", color);

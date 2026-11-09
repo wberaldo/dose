@@ -16,6 +16,8 @@
             <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
         </activity>
         <activity android:name=".EditorActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".ImportActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".ReportActivity" android:exported="false" />
         <activity android:name=".AlarmActivity" android:exported="false" android:launchMode="singleTask"
             android:showWhenLocked="true" android:turnScreenOn="true" android:excludeFromRecents="true" />
         <receiver android:name=".AlarmReceiver" android:exported="false" />

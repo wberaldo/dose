@@ -35,7 +35,7 @@ public final class ScheduleRules {
 
   public static List<Occurrence> occurrences(Medication m, LocalDate from, int count, ZoneId zone) {
     List<Occurrence> out = new ArrayList<>();
-    if (!m.enabled || m.archived || m.days == 0) return out;
+    if (!m.enabled || m.archived || m.days == 0 || m.asNeeded() || !m.review.isEmpty()) return out;
     LocalDate start = LocalDate.parse(m.start);
     LocalDate end = m.end.isEmpty() ? LocalDate.MAX : LocalDate.parse(m.end);
     for (int i = 0; i < count; i++) {
@@ -79,17 +79,28 @@ public final class ScheduleRules {
   public static void validate(Medication m) {
     if (m.name.trim().isEmpty() || m.name.length() > 100)
       throw new IllegalArgumentException("Informe o nome do medicamento (até 100 caracteres).");
-    if (!Double.isFinite(m.amount) || m.amount <= 0 || m.amount > 10000)
+    if (!Double.isFinite(m.amount)
+        || m.amount < 0
+        || m.amount > 10000
+        || (m.amount == 0 && (m.enabled || m.review.isEmpty())))
       throw new IllegalArgumentException("Informe uma quantidade de dose válida.");
     if (!Double.isFinite(m.stock) || m.stock < -1 || m.stock > 1_000_000)
       throw new IllegalArgumentException("Informe um estoque válido ou deixe em branco.");
-    if (m.days < 1 || m.days > 127)
+    if (!Arrays.asList("scheduled", "as_needed").contains(m.kind) || m.review.length() > 2000)
+      throw new IllegalArgumentException("Tipo ou revisão do medicamento inválido.");
+    if (m.enabled && !m.review.isEmpty())
+      throw new IllegalArgumentException(
+          "Confira os dados importados antes de ativar o medicamento.");
+    if (m.days < 0 || m.days > 127 || (!m.asNeeded() && m.days == 0))
       throw new IllegalArgumentException("Selecione pelo menos um dia da semana.");
-    LocalDate start = LocalDate.parse(m.start);
-    if (!m.end.isEmpty() && LocalDate.parse(m.end).isBefore(start))
+    LocalDate start = m.start.isEmpty() ? null : LocalDate.parse(m.start);
+    if (start == null && m.enabled && !m.asNeeded())
+      throw new IllegalArgumentException("Defina o primeiro dia dos lembretes.");
+    LocalDate end = m.end.isEmpty() ? null : LocalDate.parse(m.end);
+    if (end != null && start != null && end.isBefore(start))
       throw new IllegalArgumentException("A data final deve ser igual ou posterior à inicial.");
     if (m.unit.length() > 40 || m.notes.length() > 1000 || m.strength.length() > 80)
       throw new IllegalArgumentException("Revise o tamanho das informações.");
-    parseTimes(m.times);
+    if (!m.asNeeded() || !m.times.isEmpty()) parseTimes(m.times);
   }
 }
