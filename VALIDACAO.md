@@ -1,57 +1,49 @@
-# Validação — Dose 1.4.0
+# Validação — Dose 1.5.0
 
-Pacote `br.com.well.dose`, versão 1.4.0, código 6. Verificações em 08/11/2026.
+Pacote `br.com.well.dose`, versão 1.5.0, código 7. Verificações em 08/11/2026.
 
-## Resultados
+## Verificações da recompilação entregue
 
 | Verificação | Aprovadas |
 |---|---:|
 | Regras Java de agendamento | 18 |
-| Atualização real de 1.3.0 e restauração de backup 3 | 7 |
-| Tomei disponível na agenda de hoje e ausente em dias futuros | 3 |
-| Cancelamento por medicamento e data, persistência e backup | 12 |
+| Conversor de relatórios com exemplos fictícios | 11 |
+| Atualização real de 1.4.0, comparando integralmente as cinco tabelas | 1 |
+| Backup lógico, preferências, proteção, arquivos e restauração | 22 |
 | Integração SQLite, estoque, notificações, ações e backup | 25 |
-| Importação por adição e compatibilidade de backup | 20 |
-| Aparência, estoque simultâneo, histórico visual e backups antigos | 17 |
-| Notificação única, áudio, volume e cancelamento com dois alarmes ativos | 26 |
-| Calendário, temas e controles do alarme de teste | 26 |
-| Cancelamento pela interface com toques reais | 3 |
-| Tomei e confirmação pela interface com toques reais | 3 |
-| **Total** | **160** |
+| **Total** | **77** |
 
-Preparações de dados não entram na contagem. Registros em `verificacao/1.4.0/`. Assinatura v2/v3 e alinhamento zipalign verificados; o certificado permanece o da versão anterior.
+Preparações de dados não entram na contagem. Registros desta recompilação em `verificacao/1.5.0/`. Assinatura v2/v3, certificado, alinhamento zipalign, versão do manifesto e integridade do arquivo APK também foram conferidos.
 
-## Tomada dentro do aplicativo
+O ambiente temporário foi reiniciado antes da disponibilização da primeira compilação 1.5.0. O projeto foi recuperado do ZIP e do histórico Git da entrega 1.4.0, as alterações 1.5.0 foram reaplicadas e o APK foi recompilado com a mesma chave. O arquivo entregue tem os testes acima executados novamente.
 
-A agenda oferece Tomei nas doses pendentes de hoje, inclusive mais de cinco minutos antes do horário, sem depender de notificação. Antes do horário, a confirmação identifica medicamento, dose e horário previsto. A interface mostra Tomado e o horário real após confirmar, atualiza progresso e histórico e desconta estoque uma vez. Dias futuros não oferecem registrar tomada antecipadamente.
+A execução anterior da 1.5.0 havia concluído 117 verificações, incluindo restauração pelo transporte local do Android após apagar os dados. Seus relatórios locais não sobreviveram ao reinício do ambiente. Na recompilação, o emulador voltou a apresentar travamento após os testes de backup e integração. A execução adicional foi interrompida; calendário, cancelamento por dia e transporte completo não foram repetidos até o fim nesta segunda execução. Os testes correspondentes permanecem no código. As evidências das versões anteriores continuam no ZIP.
 
-Na conferência visual, um medicamento fictício teve os avisos do dia cancelados; Tomei continuou disponível. Foram tocados Tomei e Já tomei no diálogo real. O banco confirmou o horário efetivo anterior ao previsto, estoque de 29 após iniciar com 30, ausência de reagendamento da dose e presença no histórico. A tela passou a mostrar 1 de 1 doses tomadas e 100%.
+## Atualização e dados
 
-## Cancelamento limitado ao dia
+O APK 1.5.0 foi instalado sobre o 1.4.0 com dados fictícios. As tabelas `meds`, `doses`, `import_sources`, `import_links` e `reminder_mutes` foram comparadas integralmente antes e depois da instalação, sem diferenças. O esquema do banco permanece na versão 4. Não é necessário desinstalar ou importar medicamentos novamente.
 
-Cancelar lembretes do dia afeta todos os horários de um único medicamento na data selecionada. O diálogo informa nome e data e explica esse alcance. Os demais medicamentos e os próximos dias mantêm seus agendamentos.
+O arquivo de backup continua na versão 4, agora com preferências opcionais. Backups anteriores continuam aceitos. A restauração preserva estoque e histórico sem descontar doses novamente, recupera dias cancelados, aparência e preferências dos lembretes. Estados temporários de testes e áudio são excluídos; horários anteriores à restauração não geram avisos retroativos. Preferências inválidas são rejeitadas antes de substituir o banco e arquivos acima de 20 MB não são aceitos.
 
-O cancelamento não registra tomada ou dose pulada e não desconta estoque. Persiste ao reabrir o banco, recalcular fuso, editar aparência ou acrescentar horários no mesmo dia. Um adiamento antigo não reativa o dia cancelado. As doses continuam disponíveis para registro manual; avisos cancelados não aparecem como próximo lembrete.
+A gravação e a leitura manual foram exercitadas com arquivo local em segundo plano e a atividade real. As intenções de criação e abertura do seletor Android foram verificadas. O provedor Google Drive não está instalado na imagem do emulador; seleção de conta/pasta e sincronização por esse provedor precisam ser conferidas no celular.
 
-Os testes também reproduziram dois medicamentos com alarmes ativos. Cancelar o primeiro preservou notificação, serviço e áudio do segundo. Cancelar o último encerrou áudio e aviso. A transferência do serviço remove o aviso cancelado e mantém apenas os lembretes válidos.
+## Backup da conta do Android
 
-## Dados e backup
+O automático começa desativado. O agente exige a escolha do usuário e um transporte que informe criptografia no cliente, ou transferência direta entre aparelhos. As regras da nuvem também exigem capacidades de criptografia. Android 8 mantém o backup manual; o automático exige API 28 ou superior.
 
-A migração do banco de 3 para 4 acrescenta somente a tabela de cancelamentos, indexada por medicamento e data. Na atualização real, foram comparados integralmente medicamentos, doses, importações e vínculos, com estoque, histórico e cores. Preferências escolhidas na versão 1.3.0 permaneceram.
+As regras incluem somente `files/cloud_backup/backup.json`. O arquivo contém uma leitura consistente das cinco coleções e uma lista explícita de preferências, com gravação atômica e limite de 20 MB. Banco bruto, preferências completas, permissões, cache e estado de reprodução não são oferecidos pelo agente.
 
-O backup versão 4 inclui os dias cancelados e aceita os formatos 1, 2 e 3. Referências inválidas de cancelamento são rejeitadas antes de substituir dados. Importação de medicamentos, ausência de alertas retroativos e aparência foram verificadas novamente. Não é necessário desinstalar ou reimportar ao atualizar.
+O transporte local do Android simula capacidades de criptografia; ele não comprova envio aos servidores do Google. Nenhuma conta Google real foi conectada neste ambiente. O envio efetivo, a conta de destino e a recuperação em outro aparelho precisam ser conferidos no celular. O Android decide quando executar o automático, e a tela distingue dados preparados de confirmação de envio à nuvem.
 
 ## Ambiente e limites
 
-Android 15 / API 35 em emulador isolado, tela 720 × 1600, com dados fictícios. Compilado com SDK 37, mínimo API 26. A tela inicial e a interface do sistema do emulador travaram durante a etapa visual; foram recuperadas antes dos toques e capturas finais. O registro final de AndroidRuntime não contém exceção fatal do Dose.
-
-O áudio nativo foi verificado nos modos vibrar e silencioso, assim como manutenção do aviso após silenciar e restauração do volume. Esta execução não substitui teste em Samsung físico ou Android 17, alto-falante real ou restrições de bateria do fabricante. A abertura automática em tela bloqueada tem a evidência anterior em `verificacao/1.3.0/`; nesta versão foram verificados os controles, o filtro dos dias cancelados e a abertura da atividade pelo aviso. O Não perturbe continua sujeito às permissões de alarmes do Android.
+Android 15 / API 35 em emulador isolado, com dados fictícios. Compilado com SDK 37, mínimo API 26. Esta execução não substitui teste em Samsung físico, Android 17, alto-falante real ou restrições de bateria do fabricante. Evidências anteriores de áudio e tela cheia estão em `verificacao/1.3.0/` e `verificacao/1.4.0/`. A integração de notificações foi repetida nesta versão. Não perturbe permanece sujeito às permissões do Android.
 
 ## Integridade
 
-- APK: `Dose-1.4.0.apk`
-- Tamanho: 262767 bytes
-- SHA-256: `8c3f410d7bcdd79f85d6f9b467b14871d39c0e227bb25069064573751c8953b4`
+- APK: `Dose-1.5.0.apk`
+- Tamanho: 271182 bytes
+- SHA-256: `2293e0becfad97bedbcbe37cade3084dfe5e6ae4ea49af13241f283c99f56bcc`
 - Certificado SHA-256: `0f4fac1c23c378c3ff9a6134a5905f01aee7dba215eb68e796fc0e363cd862d3`
 
-O histórico Git não inclui dados pessoais, PDF, importação pessoal ou chave de assinatura. A chave permanece somente na entrega privada do projeto para assinar futuras atualizações.
+O Git contém somente código, recursos, testes e documentação. Não inclui PDF pessoal, importação pessoal, banco de dados ou chave de assinatura. A chave fica somente na entrega privada do projeto, para manter compatibilidade das atualizações. Nenhum remoto está configurado; não foi feito push ao GitHub.

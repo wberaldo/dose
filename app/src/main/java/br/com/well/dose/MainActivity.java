@@ -920,6 +920,11 @@ public final class MainActivity extends Activity {
     Ui.add(body, Ui.text(this, "Seus dados", 21, Ui.INK, true), 28);
     option(
         body,
+        "Backup e Google Drive",
+        "Backup da conta do celular e arquivos para salvar ou restaurar.",
+        () -> startActivity(new Intent(this, BackupActivity.class)));
+    option(
+        body,
         "Importar medicamentos",
         "Trazer cadastros e histórico de um relatório, sem substituir os dados atuais.",
         () -> startActivity(new Intent(this, ImportActivity.class)));
@@ -968,7 +973,7 @@ public final class MainActivity extends Activity {
         body,
         Ui.text(
             this,
-            "Dose 1.4.0 • Funciona sem conta e sem internet.\n"
+            "Dose 1.5.0 • Rotina e lembretes funcionam sem internet.\n"
                 + "Os dados ficam neste aparelho. Faça backups antes de desinstalar. Cadastre"
                 + " apenas os horários da sua prescrição.",
             12,
@@ -1324,41 +1329,7 @@ public final class MainActivity extends Activity {
   protected void onActivityResult(int r, int result, Intent data) {
     super.onActivityResult(r, result, data);
     if (result != RESULT_OK || data == null || data.getData() == null) return;
-    try {
-      if (r == 101) {
-        byte[] bytes = Store.get(this).exportJson().toString(2).getBytes("UTF-8");
-        try (OutputStream out = getContentResolver().openOutputStream(data.getData())) {
-          out.write(bytes);
-        }
-        Ui.toast(this, "Backup salvo.");
-      }
-      if (r == 102) {
-        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-        try (InputStream in = getContentResolver().openInputStream(data.getData())) {
-          byte[] b = new byte[8192];
-          int n;
-          while ((n = in.read(b)) != -1) {
-            if (buffer.size() + n > 20_000_000) throw new IOException("Backup muito grande.");
-            buffer.write(b, 0, n);
-          }
-        }
-        JSONObject root = new JSONObject(buffer.toString("UTF-8"));
-        synchronized (AlarmEngine.LOCK) {
-          Store.get(this).importJson(root);
-          ((NotificationManager) getSystemService(NOTIFICATION_SERVICE)).cancelAll();
-          RingingService.stopSound(this);
-          Store.get(this).rezone(System.currentTimeMillis());
-          AlarmEngine.refresh(this);
-        }
-        Ui.toast(this, "Backup restaurado.");
-        render();
-      }
-    } catch (Exception e) {
-      Ui.toast(
-          this,
-          "Não foi possível concluir: "
-              + (e.getMessage() == null ? "arquivo inválido" : e.getMessage()));
-    }
+    if (r == 101 || r == 102) BackupFiles.transfer(this, data.getData(), r == 102, this::render);
   }
 
   private void empty(

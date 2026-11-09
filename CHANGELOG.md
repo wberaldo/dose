@@ -1,5 +1,15 @@
 # Alterações
 
+## 1.5.0
+
+- Adiciona a central Backup e Google Drive em Alertas.
+- Integra o backup da conta do Android, desativado até o usuário ativar no Dose.
+- Permite exportar e restaurar arquivos pelo Drive ou armazenamento escolhido no seletor Android.
+- Executa leitura e gravação dos arquivos fora da interface.
+- Inclui preferências de aparência e lembretes no arquivo de backup, com compatibilidade com arquivos anteriores.
+- Exclui estados temporários de áudio e testes e retoma lembretes somente nos próximos horários após restaurar.
+- Oferece apenas o arquivo lógico ao transporte de backup; a nuvem exige proteção por criptografia do Android.
+
 ## 1.4.0
 
 - Cancela os lembretes de um medicamento apenas na data selecionada, preservando os demais remédios e dias.

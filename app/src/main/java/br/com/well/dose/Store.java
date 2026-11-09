@@ -505,17 +505,24 @@ public final class Store extends SQLiteOpenHelper {
   }
 
   public JSONObject exportJson() throws JSONException {
-    JSONObject root = new JSONObject();
-    root.put("format", "dose-backup");
-    root.put("version", 4);
-    root.put("exported_at", System.currentTimeMillis());
-    root.put("zone", ZoneId.systemDefault().getId());
-    root.put("meds", tableJson("meds"));
-    root.put("doses", tableJson("doses"));
-    root.put("import_sources", tableJson("import_sources"));
-    root.put("import_links", tableJson("import_links"));
-    root.put("reminder_mutes", tableJson("reminder_mutes"));
-    return root;
+    SQLiteDatabase db = getWritableDatabase();
+    db.beginTransactionNonExclusive();
+    try {
+      JSONObject root = new JSONObject();
+      root.put("format", "dose-backup");
+      root.put("version", 4);
+      root.put("exported_at", System.currentTimeMillis());
+      root.put("zone", ZoneId.systemDefault().getId());
+      root.put("meds", tableJson("meds"));
+      root.put("doses", tableJson("doses"));
+      root.put("import_sources", tableJson("import_sources"));
+      root.put("import_links", tableJson("import_links"));
+      root.put("reminder_mutes", tableJson("reminder_mutes"));
+      db.setTransactionSuccessful();
+      return root;
+    } finally {
+      db.endTransaction();
+    }
   }
 
   private JSONArray tableJson(String table) throws JSONException {

@@ -21,6 +21,7 @@ public final class AlarmEngine {
       AlarmAudio.recoverExpired(c);
       cancelStale(c);
       schedule(c);
+      CloudBackup.changed(c);
     }
   }
 

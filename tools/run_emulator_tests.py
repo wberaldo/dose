@@ -27,7 +27,7 @@ try:
     ad('shell','wm','size','900x2000');ad('shell','wm','density','360')
     ad('shell','settings','put','system','screen_off_timeout','600000')
     ad('shell','cmd','alarm','set-timezone','America/Sao_Paulo',check=False)
-    print(ad('install','--no-incremental','-r',root/'build/Dose-1.4.0.apk'),flush=True)
+    print(ad('install','--no-incremental','-r',root/'build/Dose-1.5.0.apk'),flush=True)
     print(ad('install','--no-incremental','-r',root/'build/device-tests/dose-tests.apk'),flush=True)
     ad('shell','pm','grant','br.com.well.dose','android.permission.POST_NOTIFICATIONS')
     ad('shell','appops','set','br.com.well.dose','SCHEDULE_EXACT_ALARM','allow')
@@ -39,6 +39,10 @@ try:
     tests=ad('shell','am','instrument','-r','-w',runner,timeout=180);(out/'device-tests.txt').write_text(tests);print(tests,flush=True)
     if 'INSTRUMENTATION_RESULT: result=PASS' not in tests:raise RuntimeError('Device integration tests failed.')
     summary['integration']='PASS'
+    backups=ad('shell','am','instrument','-r','-w','-e','mode','backups',runner,timeout=300)
+    (out/'backups.txt').write_text(backups);print(backups,flush=True)
+    if 'INSTRUMENTATION_RESULT: result=PASS' not in backups:raise RuntimeError('Account backup, manual file or restore checks failed.')
+    summary['backups']='PASS'
     today=ad('shell','am','instrument','-r','-w','-e','mode','today',runner,timeout=240)
     (out/'today.txt').write_text(today);print(today,flush=True)
     if 'INSTRUMENTATION_RESULT: result=PASS' not in today:raise RuntimeError('In-app dose confirmation checks failed.')
@@ -60,7 +64,7 @@ try:
     if 'INSTRUMENTATION_RESULT: result=PASS' not in alarms:raise RuntimeError('Single notification, alarm audio or volume recovery checks failed.')
     summary['alarms']='PASS'
     regression=ad('shell','am','instrument','-r','-w','-e','mode','regression',runner,timeout=240)
-    (out/'regression-1.4.0.txt').write_text(regression);print(regression,flush=True)
+    (out/'regression-1.5.0.txt').write_text(regression);print(regression,flush=True)
     if 'INSTRUMENTATION_RESULT: result=PASS' not in regression:raise RuntimeError('Theme, calendar or test-alarm regression failed.')
     summary['regression']='PASS'
     seed=ad('shell','am','instrument','-r','-w','-e','mode','seed',runner,timeout=60);(out/'background-seed.txt').write_text(seed)

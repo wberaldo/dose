@@ -43,6 +43,9 @@ public final class DeviceTests extends Instrumentation {
       else if ("alarms".equals(mode)) alarmChecks();
       else if ("today".equals(mode)) todayChecks();
       else if ("cancel_day".equals(mode)) cancelDayChecks();
+      else if ("backups".equals(mode)) backupChecks();
+      else if ("cloud_seed".equals(mode)) cloudSeed();
+      else if ("cloud_verify".equals(mode)) cloudVerify();
       else if ("today_ui_seed".equals(mode)) todayUiSeed();
       else if ("today_ui_verify".equals(mode)) todayUiVerify();
       else if ("upgrade_seed130".equals(mode)) upgradeSeed130();
@@ -132,6 +135,14 @@ public final class DeviceTests extends Instrumentation {
     try {
       if (c.getPackageManager().getPackageInfo(c.getPackageName(), 0).versionCode >= 5)
         AlarmAudio.releaseVolume(c);
+    } catch (android.content.pm.PackageManager.NameNotFoundException e) {
+      throw new IllegalStateException(e);
+    }
+    try {
+      if (c.getPackageManager().getPackageInfo(c.getPackageName(), 0).versionCode >= 7) {
+        CloudBackup.setEnabled(c, false);
+        CloudBackup.prefs(c).edit().clear().commit();
+      }
     } catch (android.content.pm.PackageManager.NameNotFoundException e) {
       throw new IllegalStateException(e);
     }
@@ -1525,6 +1536,265 @@ public final class DeviceTests extends Instrumentation {
       clear();
       AlarmEngine.refresh(c);
     }
+  }
+
+  private void backupChecks() throws Exception {
+    clear();
+    int encrypted = android.app.backup.BackupAgent.FLAG_CLIENT_SIDE_ENCRYPTION_ENABLED;
+    int transfer = android.app.backup.BackupAgent.FLAG_DEVICE_TO_DEVICE_TRANSFER;
+    check(
+        !CloudBackup.enabled(c) && !CloudBackup.eligible(false, 35, encrypted),
+        "backup da conta começa desativado e exige escolha do usuário");
+    check(
+        !CloudBackup.eligible(true, 35, 0)
+            && !CloudBackup.eligible(true, 27, encrypted)
+            && CloudBackup.eligible(true, 35, encrypted)
+            && CloudBackup.eligible(true, 35, transfer),
+        "backup automático recusa transporte sem proteção e aceita criptografia ou transferência"
+            + " direta");
+    android.content.pm.ApplicationInfo info =
+        c.getPackageManager().getApplicationInfo(c.getPackageName(), 0);
+    check(
+        (info.flags & android.content.pm.ApplicationInfo.FLAG_ALLOW_BACKUP) != 0
+            && info.backupAgentName.endsWith("DoseBackupAgent"),
+        "APK declara o agente de backup do Android");
+    try (android.content.res.XmlResourceParser xml =
+        c.getResources().getXml(R.xml.data_extraction_rules)) {
+      int includes = 0;
+      boolean encryptedCloud = false;
+      while (xml.next() != org.xmlpull.v1.XmlPullParser.END_DOCUMENT) {
+        if (xml.getEventType() != org.xmlpull.v1.XmlPullParser.START_TAG) continue;
+        if ("cloud-backup".equals(xml.getName()))
+          encryptedCloud =
+              xml.getAttributeBooleanValue(null, "disableIfNoEncryptionCapabilities", false);
+        if ("include".equals(xml.getName())) {
+          check(
+              "file".equals(xml.getAttributeValue(null, "domain"))
+                  && "cloud_backup/backup.json".equals(xml.getAttributeValue(null, "path")),
+              "regras exportam somente o arquivo lógico de backup");
+          includes++;
+        }
+      }
+      check(
+          includes == 2 && encryptedCloud,
+          "nuvem exige proteção e não copia banco bruto, permissões ou preferências temporárias");
+    }
+    Medication med = medication("Exemplo para backup da conta");
+    db.maintain(System.currentTimeMillis());
+    db.resolve(future(med.id).id, "taken", System.currentTimeMillis());
+    db.cancelReminders(med.id, LocalDate.now());
+    Medication late = medication("Exemplo de lembrete no aparelho anterior");
+    late.times =
+        LocalTime.now().minusMinutes(10).format(ScheduleRules.CLOCK)
+            + ","
+            + LocalTime.now().plusHours(2).format(ScheduleRules.CLOCK);
+    db.save(late, System.currentTimeMillis() - 3600000);
+    db.maintain(System.currentTimeMillis());
+    Dose oldReminder =
+        db.forDate(LocalDate.now()).stream()
+            .filter(d -> d.medId == late.id && d.scheduled < System.currentTimeMillis())
+            .findFirst()
+            .get();
+    Prefs.get(c)
+        .edit()
+        .putString("theme", "dark")
+        .putInt("repeat_minutes", 10)
+        .putInt("snooze_minutes", 30)
+        .putBoolean("private", true)
+        .putLong("test_at", System.currentTimeMillis() + 3600000)
+        .putLong("ringing_until", 1)
+        .putString("last_error", "Marcador temporário")
+        .commit();
+    byte[] snapshot = BackupFiles.snapshot(c);
+    JSONObject root = new JSONObject(new String(snapshot, "UTF-8"));
+    check(
+        root.getInt("version") == 4
+            && root.getJSONObject("settings").getString("theme").equals("dark")
+            && root.getJSONArray("reminder_mutes").length() == 1,
+        "arquivo inclui dados completos, cancelamentos do dia e preferências escolhidas");
+    check(
+        !root.getJSONObject("settings").has("test_at")
+            && !root.getJSONObject("settings").has("ringing_until")
+            && !root.getJSONObject("settings").has("last_error"),
+        "estado de áudio, testes e diagnósticos não entra no backup");
+    CloudBackup.prepare(c);
+    check(
+        CloudBackup.payload(c).isFile()
+            && new JSONObject(
+                        new String(
+                            java.nio.file.Files.readAllBytes(CloudBackup.payload(c).toPath()),
+                            "UTF-8"))
+                    .getJSONArray("meds")
+                    .length()
+                == 2,
+        "snapshot para o Android é gravado completo e legível");
+    CloudBackup.prefs(c).edit().putBoolean("enabled", false).commit();
+    db.importJson(
+        new JSONObject()
+            .put("format", "dose-backup")
+            .put("version", 4)
+            .put("meds", new JSONArray())
+            .put("doses", new JSONArray()));
+    Prefs.get(c).edit().putString("theme", "light").commit();
+    CloudBackup.restore(c);
+    check(
+        db.medications().size() == 2
+            && db.medication(med.id).stock == 29
+            && db.history().size() == 1,
+        "restauração recupera medicamentos, estoque e histórico sem descontar novamente");
+    check(
+        db.exportJson().getJSONArray("reminder_mutes").length() == 1
+            && Ui.isDark(c)
+            && Prefs.interval(c) == 10
+            && Prefs.snooze(c) == 30
+            && Prefs.privateAlarm(c),
+        "restauração recupera dias cancelados, aparência e opções dos lembretes");
+    check(
+        !Prefs.get(c).contains("test_at")
+            && !Prefs.get(c).contains("ringing_until")
+            && !Prefs.get(c).contains("last_error"),
+        "restaurar não reativa teste ou estado temporário do aparelho anterior");
+    check(
+        db.dose(oldReminder.id).status.equals("pending")
+            && db.dose(oldReminder.id).nextAlert == 0
+            && db.dose(oldReminder.id).lastAlert == 0,
+        "restauração não dispara avisos retroativos de uma dose anterior");
+    check(
+        CloudBackup.enabled(c) && CloudBackup.prefs(c).getLong("restored_at", 0) > 0,
+        "recuperação da conta é registrada somente após importar os dados");
+    JSONObject invalid = new JSONObject(new String(snapshot, "UTF-8"));
+    invalid.getJSONObject("settings").put("repeat_minutes", "inválido");
+    boolean rejected = false;
+    try {
+      BackupFiles.restore(c, invalid.toString().getBytes("UTF-8"));
+    } catch (Exception expected) {
+      rejected = true;
+    }
+    check(
+        rejected && db.medication(med.id).stock == 29,
+        "configuração inválida é rejeitada antes de substituir dados");
+    rejected = false;
+    try {
+      BackupFiles.read(new java.io.ByteArrayInputStream(new byte[BackupFiles.MAX_BYTES + 1]));
+    } catch (java.io.IOException expected) {
+      rejected = true;
+    }
+    check(rejected, "leitura de arquivo para antes de ultrapassar o limite de backup");
+    Intent create = BackupFiles.createIntent(), open = BackupFiles.openIntent();
+    check(
+        Intent.ACTION_CREATE_DOCUMENT.equals(create.getAction())
+            && "application/json".equals(create.getType())
+            && Intent.ACTION_OPEN_DOCUMENT.equals(open.getAction()),
+        "arquivos usam o seletor Android compatível com Drive e outros locais");
+    Activity activity =
+        startActivitySync(
+            new Intent(c, BackupActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+    try {
+      waitForIdleSync();
+      runOnMainSync(
+          () ->
+              check(
+                  hasText(activity, "Backup e Google Drive")
+                      && hasText(activity, "Desativar no Dose")
+                      && hasText(activity, "Salvar arquivo de backup"),
+                  "central de backup mostra conta, controle do automático e arquivo manual"));
+      java.io.File file = new java.io.File(c.getCacheDir(), "backup-test.json");
+      java.util.concurrent.atomic.AtomicBoolean done =
+          new java.util.concurrent.atomic.AtomicBoolean();
+      runOnMainSync(
+          () ->
+              BackupFiles.transfer(
+                  activity, android.net.Uri.fromFile(file), false, () -> done.set(true)));
+      await(done::get);
+      check(
+          file.isFile()
+              && new JSONObject(
+                          new String(java.nio.file.Files.readAllBytes(file.toPath()), "UTF-8"))
+                      .getJSONArray("meds")
+                      .length()
+                  == 2
+              && CloudBackup.prefs(c).getLong("manual_at", 0) > 0,
+          "gravação manual em segundo plano conclui o arquivo e atualiza seu estado");
+      done.set(false);
+      runOnMainSync(
+          () ->
+              BackupFiles.transfer(
+                  activity, android.net.Uri.fromFile(file), true, () -> done.set(true)));
+      await(done::get);
+      check(
+          db.medication(med.id).stock == 29
+              && CloudBackup.prefs(c).getLong("manual_restore_at", 0) > 0,
+          "restauração manual em segundo plano preserva estoque e registra a conclusão");
+      JSONObject legacy = new JSONObject(new String(snapshot, "UTF-8"));
+      legacy.remove("settings");
+      legacy.put("version", 3);
+      BackupFiles.restore(c, legacy.toString().getBytes("UTF-8"));
+      check(
+          db.medication(med.id).stock == 29 && Prefs.privateAlarm(c),
+          "arquivo antigo sem preferências continua sendo aceito");
+      CloudBackup.setEnabled(c, false);
+      check(
+          !CloudBackup.enabled(c) && !CloudBackup.payload(c).exists(),
+          "desativar interrompe a preparação e apaga a cópia temporária local");
+    } finally {
+      runOnMainSync(activity::finish);
+      clear();
+      AlarmEngine.refresh(c);
+    }
+  }
+
+  private void cloudSeed() throws Exception {
+    clear();
+    Medication med = medication("Medicamento fictício do backup automático");
+    med.icon = "capsule_short";
+    med.color = 0xFFD94343;
+    med.secondaryColor = 0xFFFFFFFF;
+    db.save(med, System.currentTimeMillis());
+    db.maintain(System.currentTimeMillis());
+    db.resolve(future(med.id).id, "taken", System.currentTimeMillis());
+    db.cancelReminders(med.id, LocalDate.now());
+    Prefs.get(c)
+        .edit()
+        .putString("theme", "dark")
+        .putBoolean("private", true)
+        .putInt("snooze_minutes", 30)
+        .putBoolean("alarm_profile_130", true)
+        .putLong("last_audio", 123)
+        .commit();
+    CloudBackup.setEnabled(c, true);
+    java.nio.file.Files.write(
+        new java.io.File(c.getFilesDir(), "cloud-reference.json").toPath(),
+        BackupFiles.snapshot(c));
+    check(
+        db.history().size() == 1,
+        "dados fictícios preparados para o transporte real de backup do Android");
+  }
+
+  private void cloudVerify() {
+    check(
+        db.medications().size() == 1
+            && db.medications().get(0).name.equals("Medicamento fictício do backup automático")
+            && db.medications().get(0).stock == 29,
+        "transporte Android recupera cadastro e estoque");
+    check(
+        db.history().size() == 1 && db.history().get(0).status.equals("taken"),
+        "transporte Android recupera histórico confirmado");
+    try {
+      check(
+          db.exportJson().getJSONArray("reminder_mutes").length() == 1,
+          "transporte Android recupera cancelamentos apenas no dia escolhido");
+    } catch (Exception error) {
+      throw new AssertionError(error);
+    }
+    check(
+        Ui.isDark(c) && Prefs.snooze(c) == 30 && Prefs.privateAlarm(c),
+        "transporte Android recupera preferências do usuário");
+    check(
+        CloudBackup.enabled(c) && CloudBackup.prefs(c).getLong("restored_at", 0) > 0,
+        "agente registra restauração automática após o retorno do Android");
+    check(
+        !Prefs.get(c).contains("last_audio"),
+        "transporte não restaura estado de reprodução do aparelho anterior");
   }
 
   private void todayUiSeed() {
