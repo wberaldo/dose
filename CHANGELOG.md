@@ -1,3 +1,13 @@
+# 1.7.1 — 08/11/2026
+
+- Configura o cliente OAuth Android informado para oferecer a escolha da conta Google.
+- A configuração técnica verifica cliente, pacote e assinatura. Remove a opção local que afirmava uma aprovação externa do Google: o cadastro OAuth e as condições de uso da API continuam conceitos separados, sem simular consentimento ou aprovação.
+- Mantém o consentimento explícito da conta, backup manual, diário opcional e proteção de cópia existente.
+- Confere classes DEX duplicadas antes de aceitar os APKs de distribuição e de teste.
+- Corrige a amostra de teste de alarmes antecipados, mantendo a data da ocorrência coerente com o horário, inclusive após as 20h.
+- Registra a limitação de áudio observada no Android 15 com tela cheia desativada; o perfil padrão em tela cheia passou com o aparelho bloqueado e em modo vibrar.
+- Preserva a assinatura original e o banco versão 4. Conexão e envio com conta real ainda precisam de teste no aparelho.
+
 # 1.7.0 — 08/11/2026
 
 - Implementa autorização oficial com conta Google, identificação da conta, upload REST direto para o Drive e restauração com verificação de tamanho e MD5.

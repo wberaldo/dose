@@ -32,7 +32,6 @@ public final class GoogleDriveConfig {
 
   public static boolean valid(JSONObject value, String pkg, String sha1) {
     return value.optBoolean("enabled", false)
-        && value.optBoolean("drive_backup_use_authorized", false)
         && value
             .optString("android_client_id")
             .matches("[0-9]+-[A-Za-z0-9_-]+\\.apps\\.googleusercontent\\.com")

@@ -2,8 +2,10 @@
 """Build Dose with Gradle, including official Google Identity AAR resources and manifests."""
 import argparse, json, os, pathlib, secrets, shutil, subprocess
 
+from apk_checks import verify_dex
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-VERSION_NAME = '1.7.0'
+VERSION_NAME = '1.7.1'
 p = argparse.ArgumentParser()
 p.add_argument('--sdk', default=os.environ.get('ANDROID_SDK_ROOT', os.environ.get('ANDROID_HOME', '')))
 p.add_argument('--test', action='store_true')
@@ -39,6 +41,7 @@ out.mkdir(exist_ok=True)
 dest = out / ('Dose-' + VERSION_NAME + '.apk')
 shutil.copy2(ROOT / 'app/build/outputs/apk/release/app-release.apk', dest)
 subprocess.run([str(sdk / 'build-tools/37.0.0/apksigner'), 'verify', '--verbose', str(dest)], env=env, check=True)
+verify_dex(dest)
 print('APK:', dest)
 if args.test:
     classes = out / 'test-classes'

@@ -4,11 +4,11 @@ Aplicativo nativo em português para organizar medicamentos e lembrar os horári
 
 ## Atualizar de versões anteriores
 
-Abra o APK 1.7.0 e escolha **Atualizar**. O pacote e a chave de assinatura são os mesmos; medicamentos, histórico, estoque e preferências permanecem no aparelho. Não desinstale a versão anterior para atualizar.
+Abra o APK 1.7.1 e escolha **Atualizar**. O pacote e a chave de assinatura são os mesmos; medicamentos, histórico, estoque e preferências permanecem no aparelho. Não desinstale a versão anterior para atualizar.
 
 ## Instalar e começar
 
-1. No celular, abra `Dose-1.7.0.apk` e siga a instalação. Se o Android solicitar, autorize a instalação de apps pela fonte usada para abrir o arquivo.
+1. No celular, abra `Dose-1.7.1.apk` e siga a instalação. Se o Android solicitar, autorize a instalação de apps pela fonte usada para abrir o arquivo.
 2. Abra o Dose e toque em **Cadastrar medicamento** ou **Remédios → Novo medicamento**.
 3. Informe nome, concentração se desejar, quantidade por dose, unidade, horários, dias da semana e período. Use os horários da sua prescrição.
 4. Na aba **Alertas**, autorize **Notificações**, **Alarmes e lembretes**, **Tela cheia na tela bloqueada** e **Tela cheia com o celular em uso**. Esta última abre a autorização do Android para aparecer sobre outros apps. Se usar Não perturbe, permita alarmes no modo ativo. Confira também a configuração de bateria.
@@ -20,9 +20,9 @@ Os alarmes começam nos próximos horários após cadastrar ou importar. Um hor�
 
 ## Backup e Google Drive
 
-A versão 1.7 inclui o código da conexão oficial com conta Google, upload direto, restauração e backup diário. **O APK desta entrega permanece com a configuração Google pendente**, pois o projeto OAuth do responsável pelo Dose ainda precisa ser cadastrado e habilitado. Não é possível selecionar uma conta real nesse APK enquanto essa configuração não for concluída. Não foi validado envio a uma conta real.
+A versão 1.7.1 inclui o cliente OAuth Android informado pelo responsável pelo projeto e disponibiliza **Conectar conta Google**. Ainda não foi validada uma conta Google real nesta entrega. O ID público está em `config/google-drive.json`, com pacote e SHA-1 da assinatura original. O Google confirma o cadastro do cliente durante a autorização no celular.
 
-O guia **GOOGLE-DRIVE-CONFIGURACAO.md**, incluído no projeto, contém pacote, assinatura, etapas externas e comando de compilação. O código utiliza o SDK oficial do Google e a permissão `drive.file`, limitada aos arquivos criados/autorizados para o Dose. Não utiliza a conta Google conectada ao ChatGPT.
+O guia **GOOGLE-DRIVE-CONFIGURACAO.md** descreve o teste e as condições externas de uso da API. A configuração local não afirma que houve aprovação do Google para o caso de uso de backup. O app pede autorização da conta antes de acessar o Drive.
 
 Após a ativação, **Alertas → Backup e Google Drive** mostra a conta conectada, **Fazer backup agora**, **Restaurar do Google Drive**, troca e desconexão de conta e um controle opcional do diário. A gravação ocorre pela API, sem abrir o seletor de Downloads. A pasta é `Dose` e o arquivo é `Dose-backup.json`. A conclusão exige confirmação de tamanho e MD5 pelo servidor. Uma cópia existente exige restaurar ou confirmar a substituição. O diário utiliza rede e bateria suficiente, com horário gerenciado pelo Android.
 
@@ -85,6 +85,8 @@ Ele reconhece o formato em português mostrado nesta entrega. Se não reconhecer
 - Uma verificação de manutenção separada mantém a agenda atualizada. Ela usa um alarme aproximado e não aparece como um alarme de medicamento no relógio do sistema.
 - Sem resposta, a dose passa a **Sem registro** ao chegar à próxima dose do mesmo medicamento ou após 6 horas, o que acontecer antes. Isso encerra os avisos daquela ocorrência; não afirma que você deixou de tomar. Ainda é possível registrar uma tomada passada no histórico.
 
+Na imagem Android 15 usada nesta entrega, desativar a tela cheia fez o sistema recusar o foco de áudio do serviço iniciado em segundo plano. A notificação foi entregue, mas o som contínuo não iniciou nesse cenário. Com tela cheia habilitada, a abertura automática e o início do áudio passaram, inclusive em modo vibrar com volume de alarmes zerado. Consulte `VALIDACAO.md`; confirme o comportamento no seu celular.
+
 Se a permissão de alarme exato estiver ausente, a central sinaliza o problema e há apenas um agendamento aproximado, sujeito a atrasos do sistema. O teste de 15 segundos exige a permissão exata.
 
 ## Aparência
@@ -121,7 +123,7 @@ O teste em tela bloqueada no próprio aparelho é necessário para conferir as r
 
 Agenda com visão por dia, progresso diário, cadastro com até 12 horários fixos, seleção de dias, início e término, observações, cores, pausa e arquivamento. Histórico com registro do horário real de tomada. Estoque opcional com desconto após confirmação e aviso visual quando há 5 unidades ou menos.
 
-A rotina e os lembretes funcionam localmente. O manifesto solicita internet para a integração Google opcional; sem configuração e autorização Google, ela não envia os dados. Não há anúncios. Backups por arquivos ou pela conta Android continuam dependendo das respectivas opções ativadas pelo usuário. A desinstalação apaga os dados locais: use **Alertas → Backup e Google Drive → Abrir opções de arquivo → Exportar outra cópia** para guardar medicamentos e histórico em JSON. **Restaurar de outro arquivo** substitui os dados atuais após confirmação e validação.
+A rotina e os lembretes funcionam localmente. O manifesto solicita internet para a integração Google opcional; os dados só são enviados após autorização da conta e comando de backup manual ou ativação do diário. Não há anúncios. Backups por arquivos ou pela conta Android continuam dependendo das respectivas opções ativadas pelo usuário. A desinstalação apaga os dados locais: use **Alertas → Backup e Google Drive → Abrir opções de arquivo → Exportar outra cópia** para guardar medicamentos e histórico em JSON. **Restaurar de outro arquivo** substitui os dados atuais após confirmação e validação.
 
 Compatibilidade mínima: Android 8.0 (API 26). Compilado com SDK Android 17 (API 37). APK universal, sem bibliotecas nativas específicas de processador. A validação executada está documentada em `VALIDACAO.md`.
 
@@ -136,7 +138,7 @@ sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0' 'platform-tools'
 python3 tools/build.py --sdk /caminho/absoluto/android-sdk --test
 ```
 
-Requer JDK 17 completo, Python 3 e o SDK oficial. O wrapper baixa o Gradle na primeira execução; o SDK Google e as dependências são obtidos dos repositórios oficiais. O APK assinado sai em `build/Dose-1.7.0.apk`.
+Requer JDK 17 completo, Python 3 e o SDK oficial. O wrapper baixa o Gradle na primeira execução; o SDK Google e as dependências são obtidos dos repositórios oficiais. O APK assinado sai em `build/Dose-1.7.1.apk`.
 
 `signing/` contém a chave pessoal usada nesta versão e sua configuração local. Guarde essa pasta para assinar futuras atualizações compatíveis com o APK instalado. A chave e sua senha pertencem à entrega pessoal; a pasta `signing/` não é versionada. Guarde a chave para gerar atualizações da instalação existente. A compilação usa a chave pessoal quando a pasta signing/ está presente. Sem a chave original, um novo APK não pode atualizar a instalação existente.
 
@@ -149,6 +151,8 @@ python3 tools/build_device_tests.py /caminho/absoluto/android-sdk
 python3 tools/run_emulator_tests.py --sdk /caminho/absoluto/android-sdk --avd meu_avd_de_teste
 ```
 
+Os scripts conferem se há classes duplicadas nos APKs. Se essa verificação falhar após uma compilação incremental, execute `./gradlew clean` e compile novamente.
+
 O script de emulador usa uma imagem API 35, um AVD já criado e a porta local 5038 para o servidor ADB. Os relatórios ficam em `build/validation/`. Os dados de demonstração usados para inspecionar as telas são fictícios e não fazem parte do APK distribuído.
 
 Os testes do conversor usam exemplos fictícios e rodam com `python3 -m unittest discover -s tools -p 'test_convert_mytherapy.py' -v`.
@@ -157,7 +161,7 @@ Os testes do conversor usam exemplos fictícios e rodam com `python3 -m unittest
 
 A entrega contém `Dose-historico-git.bundle`, com os commits locais do código. Para recuperar o repositório, execute `git clone Dose-historico-git.bundle dose-codigo`. Dados pessoais, arquivos de importação, PDF e chaves de assinatura não fazem parte desse histórico. A pasta privada `signing/` está apenas no ZIP desta entrega.
 
-O ZIP também contém `Dose-1.7.0.patch`, com as alterações públicas desta versão. Em um repositório que já contenha a versão 1.6.0, use `git am /caminho/Dose-1.7.0.patch` para aplicar o commit. O patch não inclui a chave de assinatura nem dados pessoais. Para começar com todo o histórico, prefira o bundle.
+O ZIP também contém `Dose-1.7.1.patch`, com as alterações públicas desta versão. Em um repositório que já contenha a versão 1.7.0, use `git am /caminho/Dose-1.7.1.patch` para aplicar o commit. O patch não inclui a chave de assinatura nem dados pessoais. Para começar com todo o histórico, prefira o bundle.
 
 Nenhum repositório remoto foi configurado e nenhum push foi realizado. Depois de definir o repositório GitHub de destino, configure o remoto nesse clone e envie os commits. Mantenha o arquivo pessoal de importação separado do código.
 
@@ -178,4 +182,4 @@ Nenhum repositório remoto foi configurado e nenhum push foi realizado. Depois d
 - Não perturbe e políticas: https://developer.android.com/reference/android/app/NotificationManager
 - Restrições para tela cheia: https://developer.android.com/about/versions/14/behavior-changes-14
 
-Versão 1.7.0. Entrega pessoal instalável; não publicada na Play Store.
+Versão 1.7.1. Entrega pessoal instalável; não publicada na Play Store.

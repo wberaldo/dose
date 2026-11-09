@@ -170,7 +170,7 @@ public final class DeviceTests extends Instrumentation {
     JSONObject original = db.exportJson();
     original.remove("exported_at");
     String before = original.toString();
-    check(!GoogleDriveConfig.enabled(c), "APK sem cadastro OAuth informa configuração pendente");
+    check(GoogleDriveConfig.enabled(c), "APK contém o cliente OAuth informado, com pacote e assinatura válidos");
     check(
         GoogleDriveConfig.fingerprint(c)
             .equalsIgnoreCase("835326a0b31ae615250a77954cca9245c55f6265"),
@@ -193,7 +193,7 @@ public final class DeviceTests extends Instrumentation {
         (android.app.job.JobScheduler) c.getSystemService(Context.JOB_SCHEDULER_SERVICE);
     check(
         blocked && jobs.getPendingJob(GoogleDriveBackup.JOB_ID) == null,
-        "diário não agenda sem configuração e autorização reais");
+        "diário não agenda sem conta conectada");
     blocked = false;
     try {
       GoogleDriveBackup.save(c, new CancellationSignal());
@@ -202,7 +202,7 @@ public final class DeviceTests extends Instrumentation {
     }
     check(
         blocked && GoogleDriveBackup.prefs(c).getLong("saved_at", 0) == 0,
-        "tentativa sem configuração não informa um backup concluído");
+        "tentativa sem conta não informa um backup concluído");
     android.content.pm.PackageInfo info =
         c.getPackageManager()
             .getPackageInfo(
@@ -235,18 +235,18 @@ public final class DeviceTests extends Instrumentation {
       runOnMainSync(
           () ->
               check(
-                  hasText(activity, "Configuração Google pendente")
-                      && hasText(activity, "Ver configuração necessária")
+                  hasText(activity, "Não conectado")
+                      && hasText(activity, "Conectar conta Google")
                       && !hasText(activity, "Conectado"),
-                  "atividade real explica pendência sem simular login"));
+                  "atividade real oferece a conexão sem simular uma conta conectada"));
       runOnMainSync(
           () -> {
             final TextView[] target = new TextView[1];
             for (View v : views(activity.getWindow().getDecorView()))
               if (v instanceof TextView
-                  && ((TextView) v).getText().toString().equals("Ver configuração necessária"))
+                  && ((TextView) v).getText().toString().equals("Conectar conta Google"))
                 target[0] = (TextView) v;
-            if (target[0] == null) throw new AssertionError("Botão de configuração ausente");
+            if (target[0] == null) throw new AssertionError("Botão de conexão ausente");
             target[0].performClick();
           });
       waitForIdleSync();
@@ -259,7 +259,7 @@ public final class DeviceTests extends Instrumentation {
     current.remove("exported_at");
     check(
         before.equals(current.toString()),
-        "consulta de configuração e tentativas bloqueadas mantêm todos os dados clínicos");
+        "tela de conexão e tentativas sem conta mantêm todos os dados clínicos");
     JSONObject snapshot = new JSONObject(new String(BackupFiles.snapshot(c), "UTF-8"));
     check(
         !snapshot.toString().contains("account_id")
@@ -1082,6 +1082,9 @@ public final class DeviceTests extends Instrumentation {
     long now = System.currentTimeMillis();
     ContentValues v = new ContentValues();
     v.put("scheduled", now - 1000);
+    // Keep the occurrence key consistent when advancing a future dose for this test.
+    v.put("local_key", Instant.ofEpochMilli(now - 1000).atZone(ZoneId.systemDefault())
+        .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'@'HH:mm")));
     v.put("next_alert", now - 500);
     v.put("expires", now + 3600000);
     db.getWritableDatabase().update("doses", v, "id=?", new String[] {"" + d.id});
@@ -1307,7 +1310,7 @@ public final class DeviceTests extends Instrumentation {
       Dose keepSecond = alarmDue(medication("Manter segundo medicamento do dia"));
       AlarmEngine.tick(c);
       await(() -> alarmPlaying() && noticeExists(cancelFirst.id) && noticeExists(keepSecond.id));
-      AlarmEngine.cancelReminders(c, cancelFirst.medId, LocalDate.now());
+      AlarmEngine.cancelReminders(c, cancelFirst.medId, LocalDate.parse(cancelFirst.key.substring(0, 10)));
       try {
         await(
             () ->
@@ -1332,7 +1335,7 @@ public final class DeviceTests extends Instrumentation {
         throw error;
       }
       check(true, "cancelar um medicamento mantém o aviso e áudio do outro medicamento ativo");
-      AlarmEngine.cancelReminders(c, keepSecond.medId, LocalDate.now());
+      AlarmEngine.cancelReminders(c, keepSecond.medId, LocalDate.parse(keepSecond.key.substring(0, 10)));
       awaitStopped();
       check(
           !noticeExists(keepSecond.id) && !noticeExists(Alerts.SERVICE_ID),

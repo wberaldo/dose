@@ -1,60 +1,69 @@
-# Validação — Dose 1.7.0
+# Validação — Dose 1.7.1
 
-Pacote `br.com.well.dose`, versão 1.7.0, código 9. Verificações em 08/11/2026. Banco mantido na versão 4.
+Pacote `br.com.well.dose`, código de versão 10, banco versão 4. Execuções em 08/11/2026, horário de São Paulo (09/11 em UTC).
 
-## Estado da integração Google
+## Configuração desta entrega
 
-**O código está implementado, mas a conexão real permanece desabilitada no APK entregue.** Não foi fornecido ou criado um projeto OAuth do responsável pelo app. O cadastro Android no Google Cloud e a condição de autorização para uso de backup prevista nos termos do Drive continuam externos à entrega; veja `GOOGLE-DRIVE-CONFIGURACAO.md`.
+O cliente OAuth Android informado foi incluído em `config/google-drive.json`. A configuração técnica confere cliente, pacote e assinatura originais e disponibiliza **Conectar conta Google**. O cadastro efetivo no Google Cloud só pode ser confirmado ao autorizar no aparelho.
 
-Nenhuma conta Google real foi acessada. Não foram testados seleção de conta real, consentimento do usuário, emissão/renovação de token pelo Google Play Services, upload/download nos servidores Google, revogação real ou execução do diário conectado ao Google. Os resultados abaixo não representam homologação desses fluxos.
+Foi removido `drive_backup_use_authorized`: um booleano local não comprova aprovação externa do Google. A autorização da conta continua sendo solicitada pelo Google Play Services. O envio exige backup manual ou ativação explícita do diário. As condições externas da API estão em `GOOGLE-DRIVE-CONFIGURACAO.md`.
 
-## Verificações locais
+## Verificações aprovadas
 
-| Verificação | Aprovadas |
+| Verificação | Quantidade |
 |---|---:|
-| Protocolo Drive, integridade, falhas, conta e configuração (JUnit, transporte controlado) | 25 |
+| JUnit: Drive, integridade, falhas, conta e configuração | 25 |
 | Regras Java de agendamento | 18 |
-| Conversão de relatório com exemplos fictícios | 11 |
-| Atualização real 1.6.0 → 1.7.0, comparação integral das cinco tabelas | 1 |
-| SQLite, estoque, notificações reais e ações dos botões | 25 |
-| Arquivo lógico, preferências, restauração e cópia opcional do Android | 22 |
-| Configuração Google pendente, atividade real e proteção dos dados | 12 |
-| Destino de arquivo persistente, botão real e proteção contra substituição | 18 |
-| **Total** | **132** |
+| Conversor MyTherapy com exemplos fictícios | 11 |
+| Núcleo nativo | 25 |
+| Backup e restauração nativos | 22 |
+| Configuração Google e interface de conexão | 12 |
+| Backup por documento Android | 18 |
+| JobScheduler de arquivo, realmente despachado em segundo plano | 4 |
+| Falhas do provedor, revogação e recuperação local | 7 |
+| Botão Tomei na aba Hoje | 3 |
+| Cancelamento somente no dia | 12 |
+| Importação nativa | 20 |
+| Desenhos, cores e edição | 17 |
+| Áudio, notificações, estoque, adiamento e cancelamento | 26 |
+| Regressão de calendário, temas, teste de alarme e tela cheia | 26 |
+| Alarme real com tela cheia, app em segundo plano e aparelho bloqueado | 3 |
+| Toque real no botão Tomei da tela cheia, confirmação e estoque | 2 |
+| Atualização real 1.7.0 → 1.7.1, preservando todas as linhas das cinco tabelas | 1 |
+| **Total de verificações aprovadas listadas** | **252** |
 
-Preparações de dados não entram na contagem. Registros em `verificacao/1.7.0/`. Compilação Gradle de release, testes JVM, APK de instrumentação e lint vital passaram. Assinatura e alinhamento também foram verificados.
+As 192 verificações das suítes nativas foram executadas nesta versão. As preparações de cenário não entram no total. O alarme real em tela cheia iniciou o áudio com modo vibrar e volume de alarmes zerado. A captura `alarm-full-screen.png` mostra os detalhes e ações. O toque em Tomei foi seguido de confirmação no banco e de um único desconto de estoque.
 
-## Testes do protocolo Google
+Também foram conferidos compilação de release, lint vital, assinatura original, alinhamento, versão e configuração OAuth embutida. O APK de teste foi compilado e instalado. Os APKs de distribuição e instrumentação não contêm classes DEX duplicadas. O APK distribuído é o mesmo instalado nos testes; uma recompilação limpa produziu as mesmas entradas internas, com diferenças apenas na assinatura do contêiner. Os registros estão em `verificacao/1.7.1/`.
 
-O JUnit utiliza um transporte controlado, sem conexão externa, exercitando requisições de perfil, listagem apenas de arquivos marcados do Dose, criação da pasta, upload retomável, atualização do mesmo arquivo e download. Confere o conteúdo enviado, tamanho e MD5, bem como respostas inválidas ou incompletas, cancelamento e limites.
+Os testes Drive JUnit usam transporte controlado, sem conta ou rede Google real. Exercitam criação/atualização, download, checksum/tamanho, identidade da conta, cópia remota alterada e erros redigidos. O JobScheduler exercitado com gravação real foi o de **arquivo Android**, usando provedor de teste; não equivale a um diário Google com conta autenticada.
 
-Casos negativos abrangem checksum ou tamanho incorretos, resposta com outro arquivo, identificador que tenta alterar o caminho, token com quebra de linha, destino de upload fora do domínio permitido, erros de quota/autorização sem vazamento da mensagem remota e configuração de pacote/certificado diferente. Também verifica a comparação de identidade da conta e a detecção de uma versão remota diferente antes de substituir uma cópia.
+## Falha reproduzida e limite de áudio
 
-Esses testes validam o protocolo e suas proteções com respostas controladas; não confirmam como uma conta real responderá.
+Duas verificações adicionais de áudio em segundo plano **não passaram** com `fullscreen=false`: lembrete normal (`verify.txt`) e teste de 15 segundos (`verify_test.txt`). A entrega da notificação ocorreu, e o teste exibiu **Encerrar teste** e **Adiar 10 min**. Entretanto o Android recusou o foco de áudio do serviço e o MediaPlayer contínuo não iniciou. Esses cenários não estão contados como aprovados na tabela. A notificação ter um som configurado não comprova reprodução audível.
 
-## Verificações no Android
+O log registra `Focus request DENIED`, processo em estado de serviço em primeiro plano e início permitido pela exceção de alarme exato. O AOSP Android 15 condiciona a capacidade de áudio do serviço à condição de permissão durante o uso, em `OomAdjuster.java`, e bloqueia o foco em `HardeningEnforcer.java`. Isso explica a recusa observada; não prova comportamento idêntico em todos os fabricantes. O app respeita a recusa e registra diagnóstico. Não houve redução do target SDK nem contorno das políticas de áudio.
 
-Imagem Android 15 / API 35 AOSP em emulador isolado, sem Google Play Services, conta ou aplicativo Drive. Somente dados fictícios.
+O perfil padrão solicitado, **com tela cheia ativada**, passou a abertura e o início do áudio em segundo plano. Mantenha as autorizações de tela cheia e confirme no aparelho. Essa limitação não foi corrigida nesta alteração de configuração OAuth.
 
-A atividade BackupActivity mostra **Configuração Google pendente**, disponibiliza o guia de ativação e não apresenta uma identidade fictícia como conectada. Tentar salvar ou ativar o diário sem configuração não registra conclusão nem agenda o trabalho 9201. O manifesto inclui internet e a atividade oficial GoogleApiActivity do SDK. O certificado em execução coincide com o das versões anteriores. O transporte nativo do Android aceita o método PATCH para atualização do Drive, verificado sem iniciar conexão. A abertura da configuração e as tentativas bloqueadas preservam os dados clínicos; o arquivo portátil não contém conta ou token Google.
+Fontes para diagnóstico:
 
-A regressão de SQLite/notificações confirmou uma única baixa de estoque, ações Tomei/Adiar, persistência de adiamento, pausa/retomada, agendamento e restauração em transação. Não foi feita nova homologação de som/tela cheia no Samsung físico.
+- https://android.googlesource.com/platform/frameworks/base/+/android-15.0.0_r1/services/core/java/com/android/server/am/OomAdjuster.java (capabilityFromFGS / isFgsAllowedWiu_forCapabilities)
+- https://android.googlesource.com/platform/frameworks/base/+/android-15.0.0_r1/services/core/java/com/android/server/audio/HardeningEnforcer.java (blockFocusMethod)
+- https://developer.android.com/media/optimize/audio-focus
 
-O fluxo antigo de arquivos agora abre FileBackupActivity. O teste usa um provedor de documento controlado no APK de instrumentação, fora do APK entregue, com concessão persistente pelo framework. Confirma gravação, releitura, botão real sem reabrir seletor, proteção de cópia existente e restauração. Não representa uma sincronização com servidores do Drive, nem nova conferência visual do seletor no aparelho.
+## Ambiente e problemas dos testes
 
-## Atualização
+Emulador AOSP Android 15/API 35, x86_64, sem Google Play Services, sem conta e sem saída física de áudio. A inicialização do MediaPlayer foi verificada pelo registro do serviço; audibilidade, volume físico e comportamento da One UI não foram medidos. Os dados usados são fictícios.
 
-A instalação de 1.7.0 sobre 1.6.0, sem desinstalar, preservou integralmente `meds`, `doses`, `import_sources`, `import_links` e `reminder_mutes`. A amostra continha um medicamento, 31 ocorrências e um cancelamento por dia; as duas tabelas de relatórios estavam vazias. A comparação foi feita nas linhas de todas as tabelas, após encerrar o processo. Não é necessário cadastrar ou importar novamente.
+A primeira execução da suíte de alarmes expôs uma amostra incoerente: o horário era antecipado para hoje, mas a chave da ocorrência ainda indicava amanhã. A amostra foi corrigida para manter as datas coerentes; a suíte então passou 26 verificações. Durante a recompilação incremental do APK de instrumentação foram detectadas classes duplicadas, que mantinham o teste antigo carregado. A compilação limpa removeu a duplicação e os scripts agora rejeitam esse artefato. O APK de distribuição não apresentou essa duplicação.
+
+## Validação pendente no aparelho
+
+Seleção/cancelamento da conta Google, consentimento, emissão e renovação de token, upload/download real, revogação, troca de conta e diário Google **não foram executados com uma conta real**. O cliente fornecido não permite consultar a configuração privada do Google Cloud. É necessário testar esses fluxos no telefone com Google Play Services, seguindo o guia incluído. Não há mesclagem entre aparelhos nem garantia contra alterações simultâneas durante um upload.
 
 ## Integridade e entrega
 
-- APK: `Dose-1.7.0.apk`
-- Tamanho: 2464937 bytes
-- SHA-256: `d2f7c8be1ad1843893b96f08d19ddfd3381aa4f0bc8b4c4919efa005c534b337`
-- Certificado SHA-256: `0f4fac1c23c378c3ff9a6134a5905f01aee7dba215eb68e796fc0e363cd862d3`
-- Certificado SHA-1: `835326a0b31ae615250a77954cca9245c55f6265`
-- APK assinado com esquema v2 e alinhamento conferido com zipalign.
+Os hashes, certificado e tamanho exatos estão em `verificacao/1.7.1/apk-integrity.json` e `apk-signature.txt`. A atualização real preservou medicamentos, doses, vínculos de importação, relatórios e cancelamentos. Instale como atualização, sem desinstalar.
 
-A compilação inclui Google Identity Services 22.0.0 com suas dependências e recursos pelo Gradle. O recurso de configuração empacotado está desativado. A chave de assinatura permanece na pasta privada `signing/`, apenas no ZIP pessoal; não entra no Git.
-
-O código público, os testes e a documentação são commitados localmente e acompanham o bundle Git e o patch desta versão. Não há remoto configurado nem push ao GitHub. Não foram incluídos banco bruto, dados pessoais, PDF pessoal, importações pessoais, tokens ou credenciais Google.
+O histórico Git contém código, testes, documentação e o ID OAuth público. A chave original fica em `signing/`, somente no ZIP pessoal. Senhas Google, tokens, banco pessoal, relatórios pessoais e importações pessoais não foram incluídos. Não há remoto GitHub nem push; o ZIP inclui o histórico Git e o patch para aplicar em um repositório existente.

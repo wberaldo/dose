@@ -4,7 +4,7 @@ import groovy.json.JsonOutput
 plugins { id 'com.android.application' }
 
 def keyData = new JsonSlurper().parse(rootProject.file('signing/local-signing.json'))
-def googleFile = providers.gradleProperty('doseGoogleConfig').map { rootProject.file(it) }
+def googleFile = providers.gradleProperty('doseGoogleConfig').orElse('config/google-drive.json').map { rootProject.file(it) }
 def generatedGoogle = layout.buildDirectory.dir('generated/googleConfig/res')
 tasks.register('generateGoogleConfig') {
     inputs.property('configuration', googleFile.map { it.text }.orElse('{"enabled":false}'))
@@ -19,14 +19,14 @@ tasks.register('generateGoogleConfig') {
 
 android {
     namespace 'br.com.well.dose'
-    compileSdk 37
+    compileSdkVersion 'android-37.0'
     buildToolsVersion '37.0.0'
     defaultConfig {
         applicationId 'br.com.well.dose'
         minSdk 26
         targetSdk 37
-        versionCode 9
-        versionName '1.7.0'
+        versionCode 10
+        versionName '1.7.1'
         testInstrumentationRunner 'br.com.well.dose.DeviceTests'
     }
     signingConfigs {

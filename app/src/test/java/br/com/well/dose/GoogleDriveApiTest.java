@@ -327,14 +327,13 @@ public class GoogleDriveApiTest {
     JSONObject cfg = new JSONObject();
     assertFalse(GoogleDriveConfig.valid(cfg, "br.com.well.dose", "A".repeat(40)));
     cfg.put("enabled", true)
-        .put("drive_backup_use_authorized", true)
         .put("android_client_id", "1234-test.apps.googleusercontent.com")
         .put("package_name", "br.com.well.dose")
         .put("sha1", "A".repeat(40));
     assertTrue(GoogleDriveConfig.valid(cfg, "br.com.well.dose", "A".repeat(40)));
     assertFalse(GoogleDriveConfig.valid(cfg, "br.com.well.dose", "B".repeat(40)));
     assertFalse(GoogleDriveConfig.valid(cfg, "other.package", "A".repeat(40)));
-    cfg.put("drive_backup_use_authorized", false);
+    cfg.put("enabled", false);
     assertFalse(GoogleDriveConfig.valid(cfg, "br.com.well.dose", "A".repeat(40)));
   }
 }
