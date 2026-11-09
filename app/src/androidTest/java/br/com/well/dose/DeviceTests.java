@@ -37,6 +37,11 @@ public final class DeviceTests extends Instrumentation {
       else if ("showcase".equals(mode)) showcase();
       else if ("regression".equals(mode)) regression();
       else if ("imports".equals(mode)) importChecks();
+      else if ("appearance_seed_v2".equals(mode)) appearanceSeedV2();
+      else if ("appearance_migration".equals(mode)) appearanceMigration();
+      else if ("appearance".equals(mode)) appearanceChecks();
+      else if ("appearance_editor".equals(mode)) appearanceEditor();
+      else if ("verify_appearance_ui".equals(mode)) verifyAppearanceUi();
       else if ("import_fixture".equals(mode)) importFixture();
       else if ("view_report".equals(mode)) viewReport();
       else if ("verify_import_ui".equals(mode)) verifyImportUi();
@@ -279,6 +284,10 @@ public final class DeviceTests extends Instrumentation {
   private void seed() {
     clear();
     Medication m = medication("Lembrete de teste");
+    m.icon = "capsule_short";
+    m.color = 0xFFD94343;
+    m.secondaryColor = 0xFFFFFFFF;
+    db.save(m, System.currentTimeMillis());
     db.maintain(System.currentTimeMillis());
     Dose d = future(m.id);
     long at = System.currentTimeMillis() + 45000;
@@ -350,8 +359,8 @@ public final class DeviceTests extends Instrumentation {
                     new java.io.File(c.getFilesDir(), "migration-v1.json").toPath()),
                 "UTF-8"));
     check(
-        db.getReadableDatabase().getVersion() == 2,
-        "atualização migra o banco da versão 1 para 2 sem recriar tabelas");
+        db.getReadableDatabase().getVersion() == 3,
+        "atualização migra o banco da versão 1 para 3 sem recriar tabelas");
     JSONArray meds = old.getJSONArray("meds");
     for (int i = 0; i < meds.length(); i++) {
       JSONObject before = meds.getJSONObject(i);
@@ -571,6 +580,283 @@ public final class DeviceTests extends Instrumentation {
         "backup da versão antiga continua restaurando sem exigir campos novos");
     clear();
     AlarmEngine.refresh(c);
+  }
+
+  private void appearanceSeedV2() throws Exception {
+    showcase();
+    Medication med = db.medications().get(0);
+    med.color = 0xFF6488BD;
+    db.save(med, System.currentTimeMillis());
+    MedicationImport imported =
+        new MedicationImport(
+            importRoot(
+                    new JSONArray()
+                        .put(importRecord("Cadastro importado de exemplo", "paused", "08:00")))
+                .toString(),
+            LocalDate.now());
+    db.mergeImport(imported, System.currentTimeMillis());
+    db.maintain(System.currentTimeMillis());
+    Prefs.get(c).edit().putString("theme", "dark").putBoolean("private", true).commit();
+    java.nio.file.Files.write(
+        new java.io.File(c.getFilesDir(), "migration-v2.json").toPath(),
+        db.exportJson().toString().getBytes("UTF-8"));
+    check(
+        db.getReadableDatabase().getVersion() == 2,
+        "banco da versão 1.1.0 preparado para atualização real");
+    check(
+        db.importedSources().size() == 1 && !db.history().isEmpty(),
+        "base antiga contém importação e histórico de teste");
+  }
+
+  private void appearanceMigration() throws Exception {
+    JSONObject old =
+        new JSONObject(
+            new String(
+                java.nio.file.Files.readAllBytes(
+                    new java.io.File(c.getFilesDir(), "migration-v2.json").toPath()),
+                "UTF-8"));
+    check(
+        db.getReadableDatabase().getVersion() == 3,
+        "atualização da versão 1.1.0 aplica a migração aditiva de aparência");
+    JSONObject fresh = new JSONObject(db.exportJson().toString());
+    boolean allKept = true, defaultStyle = true;
+    for (String table : new String[] {"meds", "doses"}) {
+      JSONArray before = old.getJSONArray(table), after = fresh.getJSONArray(table);
+      for (int i = 0; i < before.length(); i++) {
+        JSONObject original = before.getJSONObject(i), actual = null;
+        for (int j = 0; j < after.length(); j++)
+          if (after.getJSONObject(j).getLong("id") == original.getLong("id"))
+            actual = after.getJSONObject(j);
+        if (actual == null) {
+          allKept = false;
+          continue;
+        }
+        for (Iterator<String> keys = original.keys(); keys.hasNext(); ) {
+          String key = keys.next();
+          if (!original.get(key).toString().equals(actual.get(key).toString())) allKept = false;
+        }
+        if (!actual.getString("icon").equals("capsule")
+            || actual.getInt("secondary_color") != original.getInt("color")) defaultStyle = false;
+      }
+    }
+    check(allKept, "migração preserva todos os campos dos medicamentos e das doses existentes");
+    check(
+        defaultStyle,
+        "cadastros e histórico antigos recebem cápsula com sua cor original nas duas metades");
+    check(
+        old.getJSONArray("import_sources")
+                .toString()
+                .equals(fresh.getJSONArray("import_sources").toString())
+            && old.getJSONArray("import_links")
+                .toString()
+                .equals(fresh.getJSONArray("import_links").toString()),
+        "atualização preserva documentos importados e seus vínculos");
+    check(
+        Prefs.get(c).getString("theme", "").equals("dark")
+            && Prefs.get(c).getBoolean("private", false),
+        "atualização mantém aparência noturna e preferências de privacidade");
+  }
+
+  private void appearanceChecks() throws Exception {
+    clear();
+    Medication m = medication("Visual de exemplo");
+    m.icon = "capsule";
+    m.color = 0xFFD94343;
+    m.secondaryColor = 0xFFFFFFFF;
+    db.save(m, System.currentTimeMillis());
+    db.maintain(System.currentTimeMillis());
+    Medication read = db.medication(m.id);
+    check(
+        read.icon.equals(m.icon)
+            && read.color == m.color
+            && read.secondaryColor == m.secondaryColor,
+        "formato e duas cores persistem no cadastro");
+    Dose taken = future(m.id);
+    check(
+        taken.icon.equals("capsule")
+            && taken.color == m.color
+            && taken.secondaryColor == m.secondaryColor,
+        "nova ocorrência copia formato e duas cores do medicamento");
+    db.resolve(taken.id, "taken", System.currentTimeMillis());
+    Dose pending = future(m.id);
+    ContentValues ringing = new ContentValues();
+    long now = System.currentTimeMillis();
+    ringing.put("last_alert", now - 1000);
+    ringing.put("snoozed", 1);
+    ringing.put("next_alert", now + 600000);
+    ringing.put("alerts", 1);
+    db.getWritableDatabase().update("doses", ringing, "id=?", new String[] {"" + pending.id});
+    pending = db.dose(pending.id);
+    m.icon = "tablet_triangle";
+    m.color = 0xFFA8D5AB;
+    m.secondaryColor = 0xFF387AC1;
+    db.save(m, System.currentTimeMillis(), 30);
+    db.maintain(System.currentTimeMillis());
+    Dose changed = db.dose(pending.id);
+    check(
+        changed.icon.equals(m.icon)
+            && changed.color == m.color
+            && changed.secondaryColor == m.secondaryColor,
+        "troca de visual alcança também lembrete pendente e adiado");
+    check(
+        changed.nextAlert == pending.nextAlert
+            && changed.lastAlert == pending.lastAlert
+            && changed.scheduled == pending.scheduled
+            && changed.snoozed
+            && changed.alerts == pending.alerts,
+        "edição visual preserva horário, adiamento e repetições do alarme ativo");
+    Dose history = db.dose(taken.id);
+    check(
+        history.icon.equals("capsule")
+            && history.color == 0xFFD94343
+            && history.secondaryColor == 0xFFFFFFFF,
+        "histórico de dose confirmada preserva a aparência usada naquela tomada");
+    check(
+        db.medication(m.id).stock == 29,
+        "edição com estoque inalterado mantém o desconto de uma dose confirmada durante o"
+            + " cadastro");
+    m.stock = 16;
+    db.save(m, System.currentTimeMillis(), 29);
+    check(
+        db.medication(m.id).stock == 16,
+        "alteração explícita de estoque continua salvando a nova quantidade");
+    JSONObject backup = db.exportJson();
+    db.importJson(new JSONObject(backup.toString()));
+    check(
+        backup.getInt("version") == 3
+            && db.medication(m.id).icon.equals(m.icon)
+            && db.medication(m.id).secondaryColor == m.secondaryColor
+            && db.dose(taken.id).icon.equals("capsule"),
+        "backup novo preserva formato e cores de cadastros, pendências e histórico");
+    for (int version : new int[] {1, 2}) {
+      JSONObject legacy = new JSONObject(backup.toString());
+      legacy.put("version", version);
+      for (String table : new String[] {"meds", "doses"})
+        for (int i = 0; i < legacy.getJSONArray(table).length(); i++) {
+          JSONObject row = legacy.getJSONArray(table).getJSONObject(i);
+          row.remove("icon");
+          row.remove("secondary_color");
+          if (version == 1 && table.equals("meds")) {
+            row.remove("kind");
+            row.remove("review");
+          }
+        }
+      db.importJson(legacy);
+      check(
+          db.medication(m.id).icon.equals("capsule")
+              && db.medication(m.id).secondaryColor == m.color
+              && db.dose(taken.id).secondaryColor == db.dose(taken.id).color,
+          "backup versão " + version + " restaura com formato padrão e cor original");
+    }
+    db.importJson(new JSONObject(backup.toString()));
+    JSONObject invalid = new JSONObject(backup.toString());
+    invalid.getJSONArray("meds").getJSONObject(0).put("icon", "inexistente");
+    boolean rejected = false;
+    try {
+      db.importJson(invalid);
+    } catch (IllegalArgumentException expected) {
+      rejected = true;
+    }
+    check(
+        rejected && db.medication(m.id).icon.equals(m.icon),
+        "backup com formato inválido é rejeitado sem substituir os dados");
+    invalid = new JSONObject(backup.toString());
+    invalid.getJSONArray("doses").getJSONObject(0).put("secondary_color", 0);
+    rejected = false;
+    try {
+      db.importJson(invalid);
+    } catch (IllegalArgumentException expected) {
+      rejected = true;
+    }
+    check(
+        rejected && db.dose(taken.id).secondaryColor == 0xFFFFFFFF,
+        "cor transparente inválida não substitui o histórico");
+    JSONObject same = importRecord(m.name, "active", m.times);
+    MedicationImport incoming =
+        new MedicationImport(importRoot(new JSONArray().put(same)).toString(), LocalDate.now());
+    db.previewImport(incoming);
+    int[] merged = db.mergeImport(incoming, System.currentTimeMillis());
+    check(
+        merged[0] == 0
+            && merged[1] == 1
+            && db.medication(m.id).icon.equals(m.icon)
+            && db.medication(m.id).secondaryColor == m.secondaryColor,
+        "reimportação mantém a aparência personalizada do cadastro existente");
+    Notification notice = Alerts.notification(c, db.dose(pending.id), false);
+    check(
+        notice.getLargeIcon() != null && notice.actions.length == 2,
+        "notificação mantém ações e inclui a imagem colorida do medicamento");
+    check(
+        notice.publicVersion != null && notice.publicVersion.getLargeIcon() == null,
+        "versão pública da notificação não revela o formato e cores quando os detalhes estão"
+            + " protegidos");
+    Set<String> drawings = new HashSet<>();
+    boolean colorRules = true;
+    for (String icon : MedicineStyle.ICONS) {
+      android.graphics.Bitmap bitmap = MedicineIcon.bitmap(icon, 0xFFD94343, 0xFF387AC1, 128);
+      int[] pixels = new int[128 * 128];
+      bitmap.getPixels(pixels, 0, 128, 0, 0, 128, 128);
+      int first = 0, second = 0;
+      java.nio.ByteBuffer bytes = java.nio.ByteBuffer.allocate(pixels.length * 4);
+      for (int pixel : pixels) {
+        if (pixel == 0xFFD94343) first++;
+        if (pixel == 0xFF387AC1) second++;
+        bytes.putInt(pixel);
+      }
+      drawings.add(MedicationImport.digest(bytes.array()));
+      if (first < 150 || (MedicineStyle.twoColors(icon) ? second < 150 : second != 0))
+        colorRules = false;
+      bitmap.recycle();
+    }
+    check(
+        drawings.size() == MedicineStyle.ICONS.size(),
+        "todos os formatos renderizam desenhos distintos para identificar o medicamento");
+    check(colorRules, "cápsulas mostram as duas cores e comprimidos usam somente a cor escolhida");
+    clear();
+    AlarmEngine.refresh(c);
+  }
+
+  private void appearanceEditor() throws Exception {
+    clear();
+    Prefs.get(c).edit().putString("theme", args.getString("theme", "light")).commit();
+    Medication m = medication("Meu medicamento de exemplo");
+    db.maintain(System.currentTimeMillis());
+    long doseId = future(m.id).id;
+    Prefs.get(c)
+        .edit()
+        .putLong("appearance_ui_med", m.id)
+        .putLong("appearance_ui_dose", doseId)
+        .commit();
+    report.append("UI_DOSE_ID=").append(doseId).append('\n');
+    startActivitySync(
+        new Intent(c, EditorActivity.class)
+            .putExtra("med_id", m.id)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+    waitForIdleSync();
+    check(true, "editor real aberto para conferir seleção de formato e cores");
+  }
+
+  private void verifyAppearanceUi() {
+    Medication m = db.medication(Prefs.get(c).getLong("appearance_ui_med", 0));
+    check(
+        m != null && m.icon.equals("capsule_short"),
+        "formato escolhido na interface foi salvo no cadastro");
+    check(
+        m.color == 0xFFD94343 && m.secondaryColor == 0xFFFFFFFF,
+        "cores independentes escolhidas na interface persistem após recriar a tela");
+    check(
+        m.stock == 29 && db.medications().size() == 1 && db.history().size() == 1,
+        "salvar a interface após uma confirmação simultânea mantém a tomada e seu desconto no"
+            + " estoque");
+    db.maintain(System.currentTimeMillis());
+    check(
+        db.doses("med_id=? AND status='pending'", new String[] {"" + m.id}, "id").stream()
+            .allMatch(
+                d ->
+                    d.icon.equals(m.icon)
+                        && d.color == m.color
+                        && d.secondaryColor == m.secondaryColor),
+        "agenda gerada após salvar usa o desenho e as duas cores escolhidas");
   }
 
   private void importFixture() throws Exception {

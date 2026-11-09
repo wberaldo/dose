@@ -17,7 +17,7 @@ public final class Store extends SQLiteOpenHelper {
   }
 
   private Store(Context c) {
-    super(c, "dose.db", null, 2);
+    super(c, "dose.db", null, 3);
   }
 
   @Override
@@ -33,7 +33,8 @@ public final class Store extends SQLiteOpenHelper {
             + " NULL,days INTEGER NOT NULL,start TEXT NOT NULL,end TEXT NOT NULL,enabled INTEGER"
             + " NOT NULL,color INTEGER NOT NULL,stock REAL NOT NULL,created INTEGER NOT"
             + " NULL,archived INTEGER NOT NULL DEFAULT 0,kind TEXT NOT NULL DEFAULT 'scheduled',"
-            + "review TEXT NOT NULL DEFAULT '')");
+            + "review TEXT NOT NULL DEFAULT '',icon TEXT NOT NULL DEFAULT 'capsule',"
+            + "secondary_color INTEGER NOT NULL)");
     db.execSQL(
         "CREATE TABLE doses(id INTEGER PRIMARY KEY AUTOINCREMENT,med_id INTEGER NOT NULL REFERENCES"
             + " meds(id),local_key TEXT NOT NULL,scheduled INTEGER NOT NULL,expires INTEGER NOT"
@@ -41,7 +42,8 @@ public final class Store extends SQLiteOpenHelper {
             + " 0,alerts INTEGER NOT NULL DEFAULT 0,actual INTEGER NOT NULL DEFAULT 0,status TEXT"
             + " NOT NULL DEFAULT 'pending',snoozed INTEGER NOT NULL DEFAULT 0,name TEXT NOT"
             + " NULL,detail TEXT NOT NULL,notes TEXT NOT NULL,color INTEGER NOT NULL,amount REAL"
-            + " NOT NULL,UNIQUE(med_id,local_key))");
+            + " NOT NULL,icon TEXT NOT NULL DEFAULT 'capsule',secondary_color INTEGER NOT NULL,"
+            + "UNIQUE(med_id,local_key))");
     db.execSQL("CREATE INDEX dose_alert ON doses(status,next_alert)");
     db.execSQL("CREATE INDEX dose_schedule ON doses(scheduled)");
     db.execSQL("CREATE INDEX dose_med_schedule ON doses(med_id,scheduled)");
@@ -54,6 +56,14 @@ public final class Store extends SQLiteOpenHelper {
       db.execSQL("ALTER TABLE meds ADD COLUMN kind TEXT NOT NULL DEFAULT 'scheduled'");
       db.execSQL("ALTER TABLE meds ADD COLUMN review TEXT NOT NULL DEFAULT ''");
       createImportTables(db);
+    }
+    if (old < 3) {
+      for (String table : Arrays.asList("meds", "doses")) {
+        db.execSQL("ALTER TABLE " + table + " ADD COLUMN icon TEXT NOT NULL DEFAULT 'capsule'");
+        db.execSQL(
+            "ALTER TABLE " + table + " ADD COLUMN secondary_color INTEGER NOT NULL DEFAULT 0");
+        db.execSQL("UPDATE " + table + " SET secondary_color=color");
+      }
     }
   }
 
@@ -81,6 +91,8 @@ public final class Store extends SQLiteOpenHelper {
     m.end = s(c, "end");
     m.enabled = l(c, "enabled") == 1;
     m.color = (int) l(c, "color");
+    m.icon = s(c, "icon");
+    m.secondaryColor = (int) l(c, "secondary_color");
     m.stock = d(c, "stock");
     m.created = l(c, "created");
     m.archived = l(c, "archived") == 1;
@@ -106,6 +118,8 @@ public final class Store extends SQLiteOpenHelper {
     d.detail = s(c, "detail");
     d.notes = s(c, "notes");
     d.color = (int) l(c, "color");
+    d.icon = s(c, "icon");
+    d.secondaryColor = (int) l(c, "secondary_color");
     d.amount = d(c, "amount");
     return d;
   }
@@ -161,6 +175,8 @@ public final class Store extends SQLiteOpenHelper {
     v.put("end", m.end);
     v.put("enabled", m.enabled ? 1 : 0);
     v.put("color", m.color);
+    v.put("icon", m.icon);
+    v.put("secondary_color", m.secondaryColor);
     v.put("stock", m.stock);
     v.put("created", m.created);
     v.put("archived", m.archived ? 1 : 0);
@@ -170,15 +186,29 @@ public final class Store extends SQLiteOpenHelper {
   }
 
   public long save(Medication m, long now) {
+    return save(m, now, Double.NaN);
+  }
+
+  /** Keep live stock if the editor left its original quantity unchanged. */
+  public long save(Medication m, long now, double stockWhenOpened) {
     ScheduleRules.validate(m);
     SQLiteDatabase db = getWritableDatabase();
     db.beginTransaction();
     try {
+      if (m.id != 0 && m.stock == stockWhenOpened) {
+        Medication current = medication(m.id);
+        if (current != null) m.stock = current.stock;
+      }
       m.created = now; // Edits apply from now; never create retroactive alarms for new times.
       if (m.id == 0) {
         m.id = db.insertOrThrow("meds", null, values(m));
       } else {
         db.update("meds", values(m), "id=?", new String[] {"" + m.id});
+        // Appearance follows pending reminders, including snoozed ones; resolved history is a
+        // snapshot.
+        db.execSQL(
+            "UPDATE doses SET icon=?,color=?,secondary_color=? WHERE med_id=? AND status='pending'",
+            new Object[] {m.icon, m.color, m.secondaryColor, m.id});
         // Rebuild only unalerted future occurrences; preserve actions and active reminders.
         db.delete(
             "doses",
@@ -269,6 +299,8 @@ public final class Store extends SQLiteOpenHelper {
           v.put("detail", m.detail());
           v.put("notes", m.notes);
           v.put("color", m.color);
+          v.put("icon", m.icon);
+          v.put("secondary_color", m.secondaryColor);
           v.put("amount", m.amount);
           db.insertWithOnConflict("doses", null, v, SQLiteDatabase.CONFLICT_IGNORE);
         }
@@ -435,7 +467,7 @@ public final class Store extends SQLiteOpenHelper {
   public JSONObject exportJson() throws JSONException {
     JSONObject root = new JSONObject();
     root.put("format", "dose-backup");
-    root.put("version", 2);
+    root.put("version", 3);
     root.put("exported_at", System.currentTimeMillis());
     root.put("zone", ZoneId.systemDefault().getId());
     root.put("meds", tableJson("meds"));
@@ -470,7 +502,7 @@ public final class Store extends SQLiteOpenHelper {
 
   public void importJson(JSONObject root) throws JSONException {
     if (!"dose-backup".equals(root.optString("format"))
-        || !Arrays.asList(1, 2).contains(root.optInt("version")))
+        || !Arrays.asList(1, 2, 3).contains(root.optInt("version")))
       throw new IllegalArgumentException("Arquivo de backup incompatível.");
     JSONArray meds = root.getJSONArray("meds"), doses = root.getJSONArray("doses");
     if (meds.length() > 500 || doses.length() > 100000)
@@ -493,8 +525,13 @@ public final class Store extends SQLiteOpenHelper {
       m.enabled = j.getInt("enabled") == 1;
       m.kind = j.optString("kind", "scheduled");
       m.review = j.optString("review", "");
+      m.color = j.getInt("color");
+      m.icon = j.optString("icon", "capsule");
+      m.secondaryColor = j.optInt("secondary_color", m.color);
       j.put("kind", m.kind);
       j.put("review", m.review);
+      j.put("icon", m.icon);
+      j.put("secondary_color", m.secondaryColor);
       ScheduleRules.validate(m);
       if (m.id < 1
           || m.id >= Alerts.SERVICE_ID
@@ -508,6 +545,14 @@ public final class Store extends SQLiteOpenHelper {
     Set<String> doseKeys = new HashSet<>();
     for (int i = 0; i < doses.length(); i++) {
       JSONObject j = doses.getJSONObject(i);
+      String icon = j.optString("icon", "capsule");
+      int secondary = j.optInt("secondary_color", j.getInt("color"));
+      if (!MedicineStyle.valid(icon)
+          || (j.getInt("color") >>> 24) != 255
+          || (secondary >>> 24) != 255)
+        throw new IllegalArgumentException("Aparência de dose inválida no backup.");
+      j.put("icon", icon);
+      j.put("secondary_color", secondary);
       String status = j.getString("status");
       String key = j.getString("local_key");
       String[] p = key.split("@");
@@ -580,7 +625,9 @@ public final class Store extends SQLiteOpenHelper {
             "created",
             "archived",
             "kind",
-            "review"
+            "review",
+            "icon",
+            "secondary_color"
           });
       restoreTable(
           db,
@@ -602,7 +649,9 @@ public final class Store extends SQLiteOpenHelper {
             "detail",
             "notes",
             "color",
-            "amount"
+            "amount",
+            "icon",
+            "secondary_color"
           });
       restoreTable(db, "import_sources", sources, new String[] {"id", "label", "created", "data"});
       restoreTable(db, "import_links", links, new String[] {"source_id", "item_key", "med_id"});

@@ -12,9 +12,10 @@ public final class Medication {
       start = LocalDate.now().toString(),
       end = "",
       kind = "scheduled",
-      review = "";
+      review = "",
+      icon = "capsule";
   public double amount = 1, stock = -1;
-  public int days = 127, color = 0xFF137C70;
+  public int days = 127, color = 0xFF137C70, secondaryColor = 0xFF137C70;
   public boolean enabled = true, archived = false;
 
   public String detail() {

@@ -3,8 +3,8 @@
 import argparse, json, os, pathlib, secrets, subprocess, zipfile, shutil, xml.etree.ElementTree as ET
 
 ROOT=pathlib.Path(__file__).resolve().parents[1]
-VERSION_NAME='1.1.0'
-VERSION_CODE='3'
+VERSION_NAME='1.2.0'
+VERSION_CODE='4'
 p=argparse.ArgumentParser()
 p.add_argument('--sdk',default=os.environ.get('ANDROID_SDK_ROOT',os.environ.get('ANDROID_HOME','')))
 p.add_argument('--test',action='store_true')
@@ -52,5 +52,5 @@ print(f'APK: {dest}')
 if args.test:
     testclasses=out/'test-classes';testclasses.mkdir(exist_ok=True)
     src=ROOT/'app/src/test/java/br/com/well/dose/ScheduleTests.java'
-    run('java','com.sun.tools.javac.Main','-encoding','UTF-8','-d',testclasses,ROOT/'app/src/main/java/br/com/well/dose/Medication.java',ROOT/'app/src/main/java/br/com/well/dose/ScheduleRules.java',src)
+    run('java','com.sun.tools.javac.Main','-encoding','UTF-8','-d',testclasses,ROOT/'app/src/main/java/br/com/well/dose/Medication.java',ROOT/'app/src/main/java/br/com/well/dose/MedicineStyle.java',ROOT/'app/src/main/java/br/com/well/dose/ScheduleRules.java',src)
     run('java','-cp',testclasses,'br.com.well.dose.ScheduleTests')

@@ -358,7 +358,7 @@ public final class MainActivity extends Activity {
     line.addView(Ui.chip(this, status, bg, color));
     card.addView(line);
     LinearLayout label = Ui.row(this);
-    View icon = Ui.icon(this, "pill", d.color, 24);
+    View icon = Ui.medicine(this, d.icon, d.color, d.secondaryColor, 40);
     label.addView(icon);
     LinearLayout info = Ui.column(this);
     LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(0, -2, 1);
@@ -428,7 +428,7 @@ public final class MainActivity extends Activity {
     for (Medication m : list) {
       LinearLayout card = Ui.card(this);
       LinearLayout head = Ui.row(this);
-      head.addView(Ui.icon(this, "pill", m.color, 28));
+      head.addView(Ui.medicine(this, m.icon, m.color, m.secondaryColor, 46));
       LinearLayout labels = Ui.column(this);
       LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1);
       lp.leftMargin = dp(13);
@@ -618,13 +618,16 @@ public final class MainActivity extends Activity {
       }
       LinearLayout card = Ui.card(this);
       LinearLayout row = Ui.row(this);
+      row.addView(Ui.medicine(this, d.icon, d.color, d.secondaryColor, 36));
       LinearLayout info = Ui.column(this);
       info.addView(Ui.text(this, d.name, 17, Ui.INK, true));
       Ui.add(
           info,
           Ui.text(this, d.detail + " • previsto " + time(d.scheduled), 12, Ui.MUTED, false),
           7);
-      row.addView(info, new LinearLayout.LayoutParams(0, -2, 1));
+      LinearLayout.LayoutParams historyInfo = new LinearLayout.LayoutParams(0, -2, 1);
+      historyInfo.leftMargin = dp(12);
+      row.addView(info, historyInfo);
       row.addView(
           Ui.icon(
               this,

@@ -106,7 +106,7 @@ public final class Alerts {
             .setContentTitle(name)
             .setContentText(text)
             .setStyle(new Notification.BigTextStyle().bigText(more))
-            .setColor(0xFF137C70)
+            .setColor(test ? 0xFF137C70 : d.color)
             .setCategory(Notification.CATEGORY_ALARM)
             .setVisibility(
                 !test && Prefs.get(c).getBoolean("private", true)
@@ -118,7 +118,10 @@ public final class Alerts {
             .setShowWhen(true)
             .setWhen(test ? System.currentTimeMillis() : d.scheduled)
             .setOnlyAlertOnce(!ringing);
-    if (!test) b.setPublicVersion(publicVersion);
+    if (!test) {
+      b.setPublicVersion(publicVersion);
+      b.setLargeIcon(MedicineIcon.bitmap(d.icon, d.color, d.secondaryColor, Ui.dp(c, 64)));
+    }
     b.setSubText(test ? "Alarme de teste" : "Lembrete de medicamento");
     Notification.Action.Builder take =
         new Notification.Action.Builder(

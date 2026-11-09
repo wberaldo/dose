@@ -206,6 +206,13 @@ public final class Ui {
     return v;
   }
 
+  public static MedicineIcon medicine(
+      Context c, String icon, int primary, int secondary, int size) {
+    MedicineIcon view = new MedicineIcon(c, icon, primary, secondary);
+    view.setLayoutParams(new LinearLayout.LayoutParams(dp(c, size), dp(c, size)));
+    return view;
+  }
+
   public static TextView chip(Context c, String value, int background, int color) {
     TextView t = text(c, value, 12, color, true);
     t.setPadding(dp(c, 10), dp(c, 6), dp(c, 10), dp(c, 6));

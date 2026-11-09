@@ -167,7 +167,13 @@ public final class AlarmActivity extends Activity {
       } else
         for (Dose d : pending) {
           LinearLayout card = Ui.card(this);
-          card.addView(Ui.text(this, d.name, 24, Ui.INK, true));
+          LinearLayout heading = Ui.row(this);
+          heading.addView(Ui.medicine(this, d.icon, d.color, d.secondaryColor, 60));
+          TextView medicineName = Ui.text(this, d.name, 24, Ui.INK, true);
+          LinearLayout.LayoutParams nameLayout = new LinearLayout.LayoutParams(0, -2, 1);
+          nameLayout.leftMargin = Ui.dp(this, 14);
+          heading.addView(medicineName, nameLayout);
+          card.addView(heading);
           Ui.add(card, Ui.text(this, d.detail, 16, Ui.MUTED, false), 10);
           Ui.add(
               card,

@@ -1,5 +1,17 @@
 # Alterações
 
+## 1.2.0
+
+- Adiciona 12 formatos de medicamento com desenhos vetoriais.
+- Permite duas cores independentes em cápsulas e uma nos demais formatos.
+- Oferece paleta de 16 cores e ajuste de tonalidade personalizada.
+- Mostra a prévia no editor e a aparência escolhida em medicamentos, agenda, histórico e lembretes.
+- Inclui imagem colorida na notificação, mantendo a versão pública sem detalhes.
+- Preserva a aparência histórica de doses confirmadas e atualiza lembretes pendentes sem perder adiamentos.
+- Migra cadastros existentes preservando cores, importações, horários e estoque.
+- Impede que salvar um cadastro aberto restaure o estoque anterior a uma confirmação recebida durante a edição, inclusive após girar a tela.
+- Inclui aparência no backup versão 3, com restauração de backups 1 e 2.
+
 ## 1.1.0
 
 - Importação de medicamentos com prévia, seleção e revisão antes de salvar.

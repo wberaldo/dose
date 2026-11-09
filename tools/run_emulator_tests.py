@@ -27,7 +27,7 @@ try:
     ad('shell','wm','size','900x2000');ad('shell','wm','density','360')
     ad('shell','settings','put','system','screen_off_timeout','600000')
     ad('shell','cmd','alarm','set-timezone','America/Sao_Paulo',check=False)
-    print(ad('install','--no-incremental','-r',root/'build/Dose-1.1.0.apk'),flush=True)
+    print(ad('install','--no-incremental','-r',root/'build/Dose-1.2.0.apk'),flush=True)
     print(ad('install','--no-incremental','-r',root/'build/device-tests/dose-tests.apk'),flush=True)
     ad('shell','pm','grant','br.com.well.dose','android.permission.POST_NOTIFICATIONS')
     ad('shell','appops','set','br.com.well.dose','SCHEDULE_EXACT_ALARM','allow')
@@ -40,8 +40,12 @@ try:
     (out/'imports.txt').write_text(imports);print(imports,flush=True)
     if 'INSTRUMENTATION_RESULT: result=PASS' not in imports:raise RuntimeError('Medication merge, import or backup checks failed.')
     summary['imports']='PASS'
+    appearance=ad('shell','am','instrument','-r','-w','-e','mode','appearance',runner,timeout=240)
+    (out/'appearance.txt').write_text(appearance);print(appearance,flush=True)
+    if 'INSTRUMENTATION_RESULT: result=PASS' not in appearance:raise RuntimeError('Medicine appearance or backup checks failed.')
+    summary['appearance']='PASS'
     regression=ad('shell','am','instrument','-r','-w','-e','mode','regression',runner,timeout=240)
-    (out/'regression-1.1.0.txt').write_text(regression);print(regression,flush=True)
+    (out/'regression-1.2.0.txt').write_text(regression);print(regression,flush=True)
     if 'INSTRUMENTATION_RESULT: result=PASS' not in regression:raise RuntimeError('Theme, calendar or test-alarm regression failed.')
     summary['regression']='PASS'
     seed=ad('shell','am','instrument','-r','-w','-e','mode','seed',runner,timeout=60);(out/'background-seed.txt').write_text(seed)

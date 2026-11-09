@@ -77,6 +77,8 @@ public final class ScheduleRules {
   }
 
   public static void validate(Medication m) {
+    if (!MedicineStyle.valid(m.icon) || (m.color >>> 24) != 255 || (m.secondaryColor >>> 24) != 255)
+      throw new IllegalArgumentException("Escolha um formato e cores válidos para o medicamento.");
     if (m.name.trim().isEmpty() || m.name.length() > 100)
       throw new IllegalArgumentException("Informe o nome do medicamento (até 100 caracteres).");
     if (!Double.isFinite(m.amount)

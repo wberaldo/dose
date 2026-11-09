@@ -16,9 +16,11 @@ public final class EditorActivity extends Activity {
   private Spinner unit;
   private CheckBox asNeeded, activate, reviewed;
   private String originalReview = "";
-  private LinearLayout timesBox, daysBox, colorBox;
+  private LinearLayout timesBox, daysBox;
+  private AppearancePicker appearance;
+  private double stockWhenOpened;
   private final SortedSet<LocalTime> times = new TreeSet<>();
-  private int days = 127, color = 0xFF137C70;
+  private int days = 127;
   private String start, end;
   private TextView startButton, endButton;
   private final String[] units = {
@@ -31,9 +33,6 @@ public final class EditorActivity extends Activity {
     "aplicação(ões)",
     "borrifo(s)",
     "unidade(s)"
-  };
-  private final int[] colors = {
-    0xFF137C70, 0xFF6488BD, 0xFF9B75B4, 0xFFCC8653, 0xFFBF6F87, 0xFF687C48
   };
 
   @Override
@@ -51,10 +50,10 @@ public final class EditorActivity extends Activity {
       return;
     }
     originalReview = med.review;
+    stockWhenOpened = saved == null ? med.stock : saved.getDouble("stock_when_opened", med.stock);
     String restoredTimes = saved == null ? med.times : saved.getString("times", med.times);
     if (!restoredTimes.isEmpty()) times.addAll(ScheduleRules.parseTimes(restoredTimes));
     days = saved == null ? med.days : saved.getInt("days", med.days);
-    color = saved == null ? med.color : saved.getInt("color", med.color);
     start = saved == null ? med.start : saved.getString("start", med.start);
     end = saved == null ? med.end : saved.getString("end", med.end);
     LinearLayout root = Ui.root(this);
@@ -124,6 +123,21 @@ public final class EditorActivity extends Activity {
     unit.setSelection(saved == null ? selection : saved.getInt("unit", selection));
     Ui.add(b, unit, 9);
     Ui.add(body, two, 0);
+    section(body, "Formato e cores");
+    Ui.add(
+        body,
+        Ui.text(
+            this, "Escolha o desenho mais parecido com o seu medicamento.", 13, Ui.MUTED, false),
+        8);
+    appearance =
+        new AppearancePicker(
+            this,
+            saved == null ? med.icon : saved.getString("icon", med.icon),
+            saved == null ? med.color : saved.getInt("color", med.color),
+            saved == null
+                ? med.secondaryColor
+                : saved.getInt("secondary_color", med.secondaryColor));
+    Ui.add(body, appearance, 14);
     section(body, "Quando lembrar você");
     asNeeded = new CheckBox(this);
     asNeeded.setText("Usar somente quando necessário, sem horários fixos");
@@ -196,10 +210,6 @@ public final class EditorActivity extends Activity {
             Ui.MUTED,
             false),
         8);
-    Ui.add(body, Ui.text(this, "Cor do medicamento", 14, Ui.INK, true), 22);
-    colorBox = Ui.row(this);
-    Ui.add(body, colorBox, 12);
-    renderColors();
     if (!med.review.isEmpty()) {
       reviewed = new CheckBox(this);
       reviewed.setText("Conferi os dados importados com minha receita");
@@ -292,26 +302,6 @@ public final class EditorActivity extends Activity {
     }
   }
 
-  private void renderColors() {
-    colorBox.removeAllViews();
-    for (int c : colors) {
-      TextView swatch = Ui.text(this, color == c ? "✓" : "", 22, Ui.WHITE, true);
-      swatch.setGravity(Gravity.CENTER);
-      swatch.setMinHeight(dp(46));
-      swatch.setContentDescription(
-          "Cor " + Integer.toHexString(c) + (color == c ? ", selecionada" : ""));
-      Ui.touch(swatch, c, 16);
-      LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1);
-      p.setMargins(dp(3), 0, dp(3), 0);
-      colorBox.addView(swatch, p);
-      swatch.setOnClickListener(
-          v -> {
-            color = c;
-            renderColors();
-          });
-    }
-  }
-
   private void date(boolean first) {
     String value = first ? start : (end.isEmpty() ? start : end);
     LocalDate current = value.isEmpty() ? LocalDate.now() : LocalDate.parse(value);
@@ -373,7 +363,9 @@ public final class EditorActivity extends Activity {
       String s = stock.getText().toString().trim();
       med.stock = s.isEmpty() ? -1 : Double.parseDouble(s.replace(",", "."));
       med.days = days;
-      med.color = color;
+      med.color = appearance.primaryColor();
+      med.icon = appearance.icon();
+      med.secondaryColor = appearance.secondaryColor();
       med.start = start;
       med.end = end;
       med.kind = asNeeded.isChecked() ? "as_needed" : "scheduled";
@@ -390,7 +382,7 @@ public final class EditorActivity extends Activity {
       }
       ScheduleRules.validate(med);
       synchronized (AlarmEngine.LOCK) {
-        Store.get(this).save(med, System.currentTimeMillis());
+        Store.get(this).save(med, System.currentTimeMillis(), stockWhenOpened);
         AlarmEngine.refresh(this);
       }
       if (!Alerts.allowed(this) || !AlarmEngine.exact(this)) {
@@ -416,12 +408,15 @@ public final class EditorActivity extends Activity {
     b.putString("amount", amount.getText().toString());
     b.putString("notes", notes.getText().toString());
     b.putString("stock", stock.getText().toString());
+    b.putDouble("stock_when_opened", stockWhenOpened);
     b.putBoolean("as_needed", asNeeded.isChecked());
     b.putBoolean("activate", activate.isChecked());
     if (reviewed != null) b.putBoolean("reviewed", reviewed.isChecked());
     b.putInt("unit", unit.getSelectedItemPosition());
     b.putInt("days", days);
-    b.putInt("color", color);
+    b.putInt("color", appearance.primaryColor());
+    b.putString("icon", appearance.icon());
+    b.putInt("secondary_color", appearance.secondaryColor());
     b.putString("start", start);
     b.putString("end", end);
     List<String> t = new ArrayList<>();

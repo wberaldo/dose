@@ -4,17 +4,19 @@ Aplicativo nativo em português para organizar medicamentos e lembrar os horári
 
 ## Atualizar de versões anteriores
 
-Abra o APK 1.1.0 e escolha **Atualizar**. O pacote e a chave de assinatura são os mesmos; medicamentos, histórico, estoque e preferências permanecem no aparelho. Não desinstale a versão anterior para atualizar.
+Abra o APK 1.2.0 e escolha **Atualizar**. O pacote e a chave de assinatura são os mesmos; medicamentos, histórico, estoque e preferências permanecem no aparelho. Não desinstale a versão anterior para atualizar.
 
 ## Instalar e começar
 
-1. No celular, abra `Dose-1.1.0.apk` e siga a instalação. Se o Android solicitar, autorize a instalação de apps pela fonte usada para abrir o arquivo.
+1. No celular, abra `Dose-1.2.0.apk` e siga a instalação. Se o Android solicitar, autorize a instalação de apps pela fonte usada para abrir o arquivo.
 2. Abra o Dose e toque em **Cadastrar medicamento** ou **Remédios → Novo medicamento**.
 3. Informe nome, concentração se desejar, quantidade por dose, unidade, horários, dias da semana e período. Use os horários da sua prescrição.
 4. Na aba **Alertas**, ative **Notificações** e **Alarmes e lembretes**. Confira também **Alarme na tela bloqueada** e a configuração de bateria.
 5. Toque em **Testar alarme em 15 segundos**, bloqueie a tela e aguarde. O teste não registra uma dose nem altera o estoque. Para encerrar ou adiar, expanda a notificação ou toque nela. O teste oferece **Encerrar teste** e **Adiar** mesmo com a privacidade ativada; as notificações de medicamentos continuam protegendo seus detalhes.
 
 O app inicia vazio. Não importa nem presume medicamentos, doses ou horários pessoais.
+
+Os alarmes começam nos próximos horários após cadastrar ou importar. Um horário que já passou antes da importação não dispara um aviso retroativo; seu registro no relatório original continua disponível em Histórico.
 
 ## Importar um relatório MyTherapy
 
@@ -60,6 +62,22 @@ Se a permissão de alarme exato estiver ausente, a central sinaliza o problema e
 
 Em **Alertas → Aparência**, escolha **Seguir o celular** (padrão), **Modo claro** ou **Modo escuro**. A escolha fica salva e vale para agenda, cadastro, histórico, alertas, diálogos nativos e tela de alarme. A mudança de aparência não altera a cor cadastrada de um medicamento.
 
+## Formato e cores do medicamento
+
+Em **Remédios → menu do medicamento → Editar**, abra **Formato e cores**. A seção também aparece ao criar um cadastro.
+
+- Há 12 desenhos: cápsula, cápsula curta, comprimidos redondo, com sulco, cruzado, oval, alongado, triangular, quadrado e losango, além de gotas e frasco.
+- Cápsulas têm **Cor 1** e **Cor 2**, uma para cada metade. Os demais desenhos usam uma cor.
+- A paleta contém 16 cores. **Outra cor…** permite ajustar vermelho, verde e azul para chegar a uma tonalidade personalizada.
+- A prévia mostra o resultado antes de salvar. Trocar de formato preserva a segunda cor para quando você voltar a escolher uma cápsula.
+- O desenho aparece na lista de medicamentos, na agenda, no histórico e nos detalhes dos lembretes, incluindo a imagem grande da notificação. A versão pública protegida da notificação continua ocultando os detalhes.
+
+A atualização mantém os cadastros existentes com sua cor anterior. Depois de importar, você pode personalizar cada medicamento sem importar novamente. A escolha visual não preenche nem altera a dose ou a unidade automaticamente.
+
+Salvar uma edição com o campo de estoque inalterado mantém os descontos de doses confirmadas enquanto o cadastro estava aberto. Uma nova quantidade digitada continua sendo tratada como ajuste explícito do estoque.
+
+Os próximos lembretes recebem a aparência atualizada. Doses já confirmadas mantêm o desenho e as cores usados na época. O backup versão 3 inclui esses dados e aceita restaurações das versões 1 e 2.
+
 ## Samsung / One UI
 
 Em **Configurações → Bateria → Limites de uso em segundo plano**, coloque o Dose nos aplicativos que nunca entram em suspensão. Se disponível, em **Informações do app → Bateria**, escolha **Sem restrições**. A nomenclatura varia conforme a versão do sistema.
@@ -89,7 +107,7 @@ sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0' 'platform-tools'
 python3 tools/build.py --sdk /caminho/absoluto/android-sdk --test
 ```
 
-Requer Java 17 com o compilador (`java com.sun.tools.javac.Main`) e `keytool`, Python 3 e o SDK oficial. O APK assinado sai em `build/Dose-1.1.0.apk`.
+Requer Java 17 com o compilador (`java com.sun.tools.javac.Main`) e `keytool`, Python 3 e o SDK oficial. O APK assinado sai em `build/Dose-1.2.0.apk`.
 
 `signing/` contém a chave pessoal usada nesta versão e sua configuração local. Guarde essa pasta para assinar futuras atualizações compatíveis com o APK instalado. A chave e sua senha pertencem à entrega pessoal; a pasta `signing/` não é versionada. Guarde a chave para gerar atualizações da instalação existente. A compilação pelo Android Studio usa a configuração de assinatura escolhida no próprio Studio.
 
@@ -121,4 +139,4 @@ Nenhum repositório remoto foi configurado e nenhum push foi realizado. Depois d
 - Reprodução de toques e alertas: https://developer.android.com/reference/android/media/Ringtone
 - Restrições para tela cheia: https://developer.android.com/about/versions/14/behavior-changes-14
 
-Versão 1.1.0. Entrega pessoal instalável; não publicada na Play Store.
+Versão 1.2.0. Entrega pessoal instalável; não publicada na Play Store.

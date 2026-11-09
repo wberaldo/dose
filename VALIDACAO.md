@@ -1,59 +1,61 @@
-# Validação — Dose 1.1.0
+# Validação — Dose 1.2.0
 
-APK nativo compilado e assinado. Identificador `br.com.well.dose`, versão 1.1.0, código 3. Verificações realizadas em 08/11/2026.
+APK nativo, pacote `br.com.well.dose`, versão 1.2.0, código 4. Verificações realizadas em 08/11/2026.
 
 ## Resultado
 
 | Verificação | Resultado |
 |---|---|
-| Regras de agendamento Java | 18 aprovadas |
-| Conversor MyTherapy: datas, frequência, unidades e estados | 11 aprovadas |
-| Atualização real do banco da versão 1.0.1 para 1.1.0 | 7 aprovadas |
-| Integração Android / SQLite / notificações / estoque / backup | 25 aprovadas |
+| Regras de agendamento Java, incluindo ausência de alarmes retroativos | 18 aprovadas |
+| Atualização real da versão 1.1.0 para 1.2.0 com dados existentes | 5 aprovadas |
+| Integração Android / SQLite / notificações / ações / estoque / backup | 25 aprovadas |
 | Importação por adição, duplicatas e compatibilidade de backup | 20 aprovadas |
-| Calendário, temas e ações do alarme de teste | 26 aprovadas |
-| Arquivo convertido: cadastros, resumo mensal, términos e PDF | 7 aprovadas |
-| Confirmação da importação pela tela real | 3 aprovadas |
-| Consulta do resumo e renderização/paginação do PDF no Android | 3 aprovadas |
+| Formatos, cores, histórico visual, estoque simultâneo e backups 1/2/3 | 17 aprovadas |
+| Calendário, temas claro/escuro e ações do alarme de teste | 26 aprovadas |
+| Seleção e salvamento pela interface real, após girar a tela | 4 aprovadas |
 | Alarme de medicamento com processo encerrado e tela bloqueada | 3 aprovadas |
 | Teste de 15 segundos com processo encerrado e tela bloqueada | 3 aprovadas |
-| Instalação sobre o APK 1.0.1 | Concluída sem desinstalar |
-| Assinatura v2 e v3 | Verificada; mesmo certificado da versão 1.0.1 |
-| Alinhamento | Verificado com zipalign |
+| Assinatura v2 e v3, mesmo certificado da versão 1.1.0 | Verificada |
+| Alinhamento com zipalign | Verificado |
+| Inspeção visual dos formatos, paleta, ajuste personalizado e modo escuro | Concluída |
 
-As linhas com contagem totalizam 126 verificações. As etapas de preparação de dados do emulador não entram nessa contagem.
+São 121 verificações nas linhas com contagem; preparações de dados e mudanças de tema para inspeção não entram no total.
 
-## Importação
+## Atualização e preservação dos dados
 
-A migração foi executada instalando primeiro o APK anterior, criando medicamentos e histórico fictícios, e instalando o APK novo por cima. Cadastros, doses, horários reais de confirmação, estoque e datas de criação foram preservados. As novas tabelas começaram vazias.
+A versão 1.1.0 foi instalada no emulador e recebeu medicamentos, histórico confirmado, estoque, um relatório importado e preferências fictícias. O APK 1.2.0 foi instalado por cima. Todos os campos anteriores dos cadastros e das doses foram comparados, assim como os documentos importados, seus vínculos e as preferências de modo escuro e privacidade.
 
-Os testes de importação verificaram adição sem substituir dados existentes, detecção de duplicatas, manutenção de estoque e histórico, medicamentos semanais e sob demanda, estados inativos, rejeição de dados inválidos, reversão completa em erro de banco e preservação dos vínculos nos backups. O backup versão 2 inclui o documento original; backups versão 1 continuam aceitos.
+A migração acrescenta formato e segunda cor. Os registros existentes começam como cápsula com sua cor anterior nas duas metades. Nenhum medicamento, horário, estoque, confirmação ou documento foi removido.
 
-O arquivo convertido foi lido pelo parser real e gravado no SQLite do Android. Foram comparadas as quantidades esperadas de cadastros e estados do gráfico mensal, sem criar horários reais de tomada nem descontar estoque. A regra de término usa a data de geração do relatório mais os dias restantes. O PDF incorporado teve seu SHA-256 verificado e manteve os mesmos bytes após exportar e restaurar o backup.
+Backups novos preservam o visual de cada cadastro e dose. Backups antigos das versões 1 e 2 restauram com formato padrão e a cor anterior. Formatos inválidos e cores transparentes são rejeitados antes de substituir dados. Uma reimportação mantém as escolhas visuais do cadastro existente.
 
-A prévia e a confirmação foram abertas e acionadas na tela real. Depois, o banco confirmou todos os cadastros selecionados e a ausência de alarmes para registros inativos, sob demanda ou pendentes de revisão. O resumo abriu no app; o PDF original foi renderizado com conteúdo visível e avançou à segunda página.
+## Formatos e cores
 
-O conversor reconhece o formato em português desta entrega. Não é um leitor universal de PDFs: um layout ou símbolo desconhecido interrompe a conversão. A importação no aplicativo recebe o JSON preparado a partir do PDF.
+Os 12 desenhos são vetoriais e distintos. A renderização foi comparada em bitmap: as duas cápsulas usam ambas as cores; os outros formatos usam apenas a cor principal. O histórico de doses já confirmadas mantém sua aparência anterior. Lembretes pendentes, inclusive adiados, recebem o novo visual sem perder horário, adiamento ou repetições.
 
-## Regressões
+Na interface real, foram abertos o seletor de formato, a paleta de 16 cores e o ajuste personalizado de tonalidade. Foram escolhidas cápsula curta, primeira metade vermelha e segunda metade branca. A tela foi recriada ao girar o aparelho antes de salvar; o banco e a agenda confirmaram essas escolhas. As telas claras e a lista no modo escuro foram inspecionadas. As capturas incluídas usam somente dados fictícios.
 
-O calendário foi medido após o layout real nos modos claro e escuro. O nome e o número do dia ficam centralizados no destaque, com contraste mínimo de 4,5:1. A escolha de aparência permanece salva e se aplica aos campos e diálogos.
+A notificação inclui uma imagem grande com a aparência do medicamento e mantém os botões Tomei e Adiar. A versão pública protegida não mostra esse desenho. A tela de alarme também respeita a privacidade antes de exibir o medicamento.
 
-Os controles **Encerrar teste** e **Adiar** acionaram os receptores reais. O adiamento agenda outro teste, e encerrar remove o aviso pendente. Medicamentos, estoque e ocorrências não foram alterados. A privacidade dos lembretes de medicamentos foi mantida. Em avisos compactos, expanda a notificação ou toque nela para abrir os controles.
+## Estoque durante uma edição
 
-O alarme de medicamento e o teste de 15 segundos foram entregues após abrir o app, voltar à tela inicial, encerrar o processo em segundo plano e bloquear a tela. O Android confirmou o início do áudio. As notificações e suas ações foram verificadas antes da instrumentação que confirma o estado persistido.
+Foi reproduzida uma confirmação de dose enquanto o editor estava aberto. Salvar o formato e as cores, sem alterar o campo de estoque, preservou o desconto recebido nesse intervalo. A verificação também passou após girar a tela. Digitar explicitamente uma nova quantidade continua atualizando o estoque.
 
-## Ambiente e limites
+## Alarmes e limites
 
-Android 15 / API 35 em emulador isolado, com notificações e alarmes exatos autorizados. Compilado com SDK 37; compatibilidade mínima declarada API 26. Não houve teste em Samsung físico nem em todas as versões do Android. O áudio foi confirmado pelo sistema, sem avaliação de alto-falante físico. Confira o teste de 15 segundos no próprio celular após atualizar.
+O alarme de medicamento, usando cápsula personalizada, e o teste de 15 segundos foram entregues após sair do app, encerrar seu processo em segundo plano e bloquear a tela. As notificações foram conferidas antes de reiniciar a instrumentação. O Android confirmou o início do áudio e o reagendamento da repetição.
 
-A interface do sistema do emulador apresentou um bloqueio durante a automação por acessibilidade. Após recuperar essa interface, a confirmação foi repetida com toques, inspeção visual e verificação do banco, e passou. Não foi necessário alterar a aplicação para contornar o problema do emulador.
+Os horários anteriores ao cadastro ou à importação continuam sem gerar alarmes retroativos. Esse comportamento foi verificado novamente nos testes de agenda e de importação.
+
+Ambiente: Android 15 / API 35 em emulador isolado, com notificações e alarmes exatos autorizados. Compilado com SDK 37, mínimo API 26. Não houve teste em Samsung físico, avaliação de alto-falante físico ou validação de todas as versões do Android. Confira o teste de 15 segundos no celular após atualizar.
+
+A interface do sistema do emulador precisou ser reiniciada após um bloqueio. Depois disso, a seleção foi conferida com toques reais, capturas e verificação do banco; não foi necessário alterar o aplicativo para contornar esse bloqueio do emulador.
 
 ## Integridade
 
-- APK: `Dose-1.1.0.apk`
-- Tamanho: 250479 bytes
-- SHA-256: `e1541671353144e747c597df3053983c16e8f05621b179a05b9d8303e7c78e6f`
+- APK: `Dose-1.2.0.apk`
+- Tamanho: 258671 bytes
+- SHA-256: `b72a736d08b6df4f11006ebc70ed8b57b24ce82a2ee6b89a5794ea73c89aa093`
 - Certificado SHA-256: `0f4fac1c23c378c3ff9a6134a5905f01aee7dba215eb68e796fc0e363cd862d3`
 
-Os registros desta execução ficam em `verificacao/1.1.0/`. O relatório pessoal, o arquivo de importação e as capturas com dados pessoais ficam fora do código e do histórico Git.
+Os registros desta execução ficam em `verificacao/1.2.0/`. Dados pessoais, PDF, arquivo de importação e chaves de assinatura permanecem fora do histórico Git.
