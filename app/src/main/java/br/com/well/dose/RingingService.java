@@ -6,13 +6,19 @@ import android.content.pm.ServiceInfo;
 import android.media.*;
 import android.net.Uri;
 import android.os.*;
+import java.util.List;
 
-/** A bounded foreground alarm using Android's native ringtone player. */
+/** Bounded alarm playback attached to the actual dose notification, without an auxiliary notice. */
 public final class RingingService extends Service {
-  private Ringtone ringtone;
-  private MediaPlayer legacyPlayer;
+  private static volatile RingingService running;
+  private MediaPlayer player;
+  private AudioFocusRequest focus;
   private Vibrator vibrator;
   private PowerManager.WakeLock wake;
+  private long notificationId;
+  private boolean test;
+  private boolean detached;
+  private int lastStartId, audioGeneration, focusAttempts;
   private final Handler handler = new Handler(Looper.getMainLooper());
 
   @Override
@@ -21,124 +27,230 @@ public final class RingingService extends Service {
   }
 
   @Override
+  public void onCreate() {
+    super.onCreate();
+    running = this;
+  }
+
+  public static void stopTest(Context c) {
+    RingingService current = running;
+    if (current == null || current.test) stopSound(c);
+  }
+
+  public static void stopSound(Context c) {
+    RingingService current = running;
+    if (current != null) current.handler.post(current::stopAlarm);
+    else c.stopService(new Intent(c, RingingService.class));
+  }
+
+  private boolean keepReminder() {
+    return test
+        ? Prefs.get(this).getBoolean("test_visible", false)
+        : activeDose(notificationId) != null;
+  }
+
+  /** Detach while the service is still running: Android cancels its notice before onDestroy. */
+  private void stopAlarm() {
+    handler.removeCallbacksAndMessages(null);
+    stopPlayback();
+    AlarmAudio.releaseVolume(this);
+    boolean keep = keepReminder();
+    stopForeground(keep ? STOP_FOREGROUND_DETACH : STOP_FOREGROUND_REMOVE);
+    detached = true;
+    if (!keep && notificationId != 0) Alerts.cancel(this, notificationId);
+    stopSelf(lastStartId);
+  }
+
+  private Dose activeDose(long id) {
+    Dose d = Store.get(this).dose(id);
+    return d != null
+            && d.actionable()
+            && !d.snoozed
+            && d.lastAlert > 0
+            && d.expires > System.currentTimeMillis()
+        ? d
+        : null;
+  }
+
+  @Override
   public int onStartCommand(Intent intent, int flags, int startId) {
+    lastStartId = startId;
     if (intent != null && "SILENCE".equals(intent.getAction())) {
-      stopSelf();
+      stopAlarm();
       return START_NOT_STICKY;
     }
     Alerts.channels(this);
-    boolean test = intent != null && "TEST".equals(intent.getAction());
+    Dose dose =
+        notificationId > 0 && notificationId < Alerts.SERVICE_ID
+            ? activeDose(notificationId)
+            : null;
+    if (dose == null && intent != null) dose = activeDose(intent.getLongExtra("dose_id", 0));
+    if (dose == null && (intent == null || !"TEST".equals(intent.getAction()))) {
+      List<Dose> candidates =
+          Store.get(this)
+              .doses(
+                  "status='pending' AND last_alert>0 AND snoozed=0 AND expires>?",
+                  new String[] {"" + System.currentTimeMillis()},
+                  "last_alert DESC,id");
+      if (!candidates.isEmpty()) dose = candidates.get(0);
+    }
+    boolean newTest = dose == null && Prefs.get(this).getBoolean("test_visible", false);
+    if (dose == null && !newTest) {
+      stopAlarm();
+      return START_NOT_STICKY;
+    }
+    long id = newTest ? Alerts.TEST_ID : dose.id;
+    if (notificationId != 0 && notificationId != id) stopForeground(STOP_FOREGROUND_DETACH);
+    notificationId = id;
+    test = newTest;
+    Notification notification = Alerts.notification(this, dose, false);
     try {
       if (Build.VERSION.SDK_INT >= 34)
-        startForeground(
-            Alerts.SERVICE_ID,
-            Alerts.serviceNotification(this, test),
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
-      else startForeground(Alerts.SERVICE_ID, Alerts.serviceNotification(this, test));
+        startForeground((int) id, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+      else startForeground((int) id, notification);
+      detached = false;
     } catch (RuntimeException e) {
       Prefs.error(this, "O Android impediu o som contínuo. Revise as permissões e a bateria.");
-      stopSelf();
+      stopAlarm();
       return START_NOT_STICKY;
     }
     handler.removeCallbacksAndMessages(null);
-    stopAudio();
+    stopPlayback();
     wake =
         ((PowerManager) getSystemService(POWER_SERVICE))
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Dose:ringing");
     wake.acquire(65000L);
-    NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-    NotificationChannel channel = nm.getNotificationChannel(Alerts.CHANNEL);
-    boolean dndAllows =
-        nm.getCurrentInterruptionFilter() != NotificationManager.INTERRUPTION_FILTER_NONE
-            || channel.canBypassDnd();
-    AudioAttributes attrs =
-        new AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_ALARM)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .build();
-    AudioManager audio = (AudioManager) getSystemService(AUDIO_SERVICE);
-    if (Prefs.ring(this)
-        && channel.getSound() != null
-        && channel.getImportance() >= NotificationManager.IMPORTANCE_DEFAULT
-        && dndAllows
-        && audio.getStreamVolume(AudioManager.STREAM_ALARM) > 0) {
-      handler.postDelayed(() -> playTone(channel.getSound(), attrs, false), 200);
+    Prefs.get(this)
+        .edit()
+        .remove("last_audio")
+        .putLong("ringing_until", System.currentTimeMillis() + 60000L)
+        .commit();
+    NotificationChannel channel =
+        ((NotificationManager) getSystemService(NOTIFICATION_SERVICE))
+            .getNotificationChannel(Alerts.CHANNEL);
+    boolean dnd = AlarmAudio.dndAllowsAlarms(this);
+    if (Prefs.ring(this) && channel.getImportance() >= NotificationManager.IMPORTANCE_DEFAULT) {
+      if (dnd) {
+        AlarmAudio.acquireVolume(this, System.currentTimeMillis() + 70000L);
+        Uri tone = channel.getSound();
+        if (tone == null && Prefs.get(this).getBoolean("force_sound", true))
+          tone = AlarmAudio.builtIn(this);
+        if (tone != null) {
+          Uri selected = tone;
+          handler.postDelayed(() -> play(selected, false), 200);
+        }
+      } else
+        Prefs.error(
+            this,
+            "O Não perturbe está bloqueando alarmes. Permita alarmes nas configurações desse"
+                + " modo.");
     }
-    if (Prefs.vibrate(this) && channel.shouldVibrate() && dndAllows) {
+    if (Prefs.vibrate(this) && channel.shouldVibrate() && dnd) {
       vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
       vibrator.vibrate(
-          VibrationEffect.createWaveform(new long[] {0, 350, 250, 350, 250, 600, 1100}, 0), attrs);
+          VibrationEffect.createWaveform(new long[] {0, 350, 250, 350, 250, 600, 1100}, 0),
+          AlarmAudio.attributes());
     }
-    handler.postDelayed(this::stopSelf, 60000L);
+    Alerts.openFullScreen(this, test ? -1L : id);
+    handler.postDelayed(this::stopAlarm, 60000L);
     return START_NOT_STICKY;
   }
 
-  private Uri builtIn() {
-    return Uri.parse("android.resource://" + getPackageName() + "/raw/dose_alarm");
-  }
-
-  private void playTone(Uri uri, AudioAttributes attrs, boolean fallback) {
+  private void play(Uri uri, boolean fallback) {
     try {
-      if (Build.VERSION.SDK_INT >= 28) {
-        ringtone = RingtoneManager.getRingtone(this, uri);
-        if (ringtone == null) throw new IllegalStateException("Ringtone unavailable");
-        ringtone.setAudioAttributes(attrs);
-        ringtone.setLooping(true);
-        ringtone.play();
-        Ringtone expected = ringtone;
-        handler.postDelayed(
-            () -> {
-              if (ringtone != expected) return;
-              if (expected.isPlaying())
+      AudioManager audio = (AudioManager) getSystemService(AUDIO_SERVICE);
+      if (focus == null) {
+        int generation = audioGeneration;
+        focus =
+            new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+                .setAudioAttributes(AlarmAudio.attributes())
+                .setAcceptsDelayedFocusGain(false)
+                .setOnAudioFocusChangeListener(
+                    change -> {
+                      if (generation == audioGeneration && change == AudioManager.AUDIOFOCUS_LOSS)
+                        stopAlarm();
+                    },
+                    handler)
+                .build();
+        if (audio.requestAudioFocus(focus) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+          audio.abandonAudioFocusRequest(focus);
+          focus = null;
+          // On a cold start the system can still be publishing the foreground-service state.
+          // Retry briefly while the alarm screen opens, without bypassing a denied focus request.
+          if (++focusAttempts < 10) {
+            int pendingGeneration = audioGeneration;
+            handler.postDelayed(
+                () -> {
+                  if (pendingGeneration == audioGeneration) play(uri, fallback);
+                },
+                500);
+          } else
+            Prefs.error(
+                this,
+                "O Android não liberou o áudio do alarme. Confira as permissões e teste"
+                    + " novamente.");
+          return;
+        }
+        focusAttempts = 0;
+      }
+      MediaPlayer expected = new MediaPlayer();
+      player = expected;
+      expected.setAudioAttributes(AlarmAudio.attributes());
+      expected.setDataSource(this, uri);
+      expected.setLooping(true);
+      expected.setVolume(1f, 1f);
+      expected.setOnPreparedListener(
+          mp -> {
+            if (player != mp) return;
+            try {
+              mp.start();
+              if (mp.isPlaying())
                 Prefs.get(this).edit().putLong("last_audio", System.currentTimeMillis()).apply();
-              else if (!fallback) {
-                expected.stop();
-                ringtone = null;
-                playTone(builtIn(), attrs, true);
-              } else
-                Prefs.error(
-                    this, "Não foi possível tocar o som. Confira o canal e o volume de alarmes.");
-            },
-            600);
-      } else {
-        legacyPlayer = new MediaPlayer();
-        legacyPlayer.setAudioAttributes(attrs);
-        legacyPlayer.setDataSource(this, uri);
-        legacyPlayer.setLooping(true);
-        legacyPlayer.prepare();
-        legacyPlayer.start();
-        if (legacyPlayer.isPlaying())
-          Prefs.get(this).edit().putLong("last_audio", System.currentTimeMillis()).apply();
-      }
+            } catch (RuntimeException e) {
+              failed(mp, fallback);
+            }
+          });
+      expected.setOnErrorListener(
+          (mp, what, extra) -> {
+            failed(mp, fallback);
+            return true;
+          });
+      expected.prepareAsync();
     } catch (Exception e) {
-      if (ringtone != null) {
-        ringtone.stop();
-        ringtone = null;
-      }
-      if (legacyPlayer != null) {
-        legacyPlayer.release();
-        legacyPlayer = null;
-      }
-      if (!fallback) playTone(builtIn(), attrs, true);
-      else {
-        android.util.Log.w("DoseAlarm", "Unable to play alarm ringtone", e);
-        Prefs.error(this, "Não foi possível tocar o som. Confira o canal e o volume de alarmes.");
-      }
+      failed(player, fallback);
     }
   }
 
-  private void stopAudio() {
-    if (ringtone != null) {
-      ringtone.stop();
-      ringtone = null;
-    }
-    if (legacyPlayer != null) {
+  private void failed(MediaPlayer expected, boolean fallback) {
+    if (player != expected) return;
+    if (player != null) {
       try {
-        legacyPlayer.stop();
-      } catch (Exception ignored) {
+        player.release();
+      } catch (RuntimeException ignored) {
       }
-      legacyPlayer.release();
-      legacyPlayer = null;
+      player = null;
+    }
+    if (!fallback) play(AlarmAudio.builtIn(this), true);
+    else
+      Prefs.error(
+          this, "Não foi possível tocar o som do alarme. Confira o volume e o Não perturbe.");
+  }
+
+  private void stopPlayback() {
+    audioGeneration++;
+    focusAttempts = 0;
+    if (player != null) {
+      try {
+        player.setOnPreparedListener(null);
+        player.setOnErrorListener(null);
+        player.release();
+      } catch (RuntimeException ignored) {
+      }
+      player = null;
+    }
+    if (focus != null) {
+      ((AudioManager) getSystemService(AUDIO_SERVICE)).abandonAudioFocusRequest(focus);
+      focus = null;
     }
     if (vibrator != null) {
       vibrator.cancel();
@@ -151,8 +263,23 @@ public final class RingingService extends Service {
   @Override
   public void onDestroy() {
     handler.removeCallbacksAndMessages(null);
-    stopAudio();
-    stopForeground(STOP_FOREGROUND_REMOVE);
+    stopPlayback();
+    AlarmAudio.releaseVolume(this);
+    Prefs.get(this).edit().remove("ringing_until").commit();
+    boolean keep = keepReminder();
+    if (!detached) {
+      stopForeground(keep ? STOP_FOREGROUND_DETACH : STOP_FOREGROUND_REMOVE);
+      // If the system stopped us first, recover the pending reminder as a normal notification.
+      if (keep && Alerts.allowed(this)) {
+        Notification notice =
+            Alerts.notification(this, test ? null : activeDose(notificationId), false);
+        notice.fullScreenIntent = null;
+        ((NotificationManager) getSystemService(NOTIFICATION_SERVICE))
+            .notify((int) notificationId, notice);
+      }
+    }
+    if (!keep && notificationId != 0) Alerts.cancel(this, notificationId);
+    running = null;
     super.onDestroy();
   }
 }

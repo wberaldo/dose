@@ -4,7 +4,6 @@ import android.Manifest;
 import android.app.*;
 import android.content.*;
 import android.content.pm.PackageManager;
-import android.media.AudioManager;
 import android.net.Uri;
 import android.os.*;
 import android.provider.Settings;
@@ -695,19 +694,21 @@ public final class MainActivity extends Activity {
     boolean n = Alerts.allowed(this),
         e = AlarmEngine.exact(this),
         f = Alerts.fullScreenAllowed(this);
+    boolean over = Alerts.overOtherApps(this), dnd = AlarmAudio.dndAllowsAlarms(this);
+    boolean ready = n && e && f && over && dnd;
     boolean battery =
         ((PowerManager) getSystemService(POWER_SERVICE))
             .isIgnoringBatteryOptimizations(getPackageName());
     LinearLayout state = Ui.card(this);
-    state.setBackground(Ui.bg(n && e ? Ui.LIGHT : Ui.WARNING, 22, this));
+    state.setBackground(Ui.bg(ready ? Ui.LIGHT : Ui.WARNING, 22, this));
     LinearLayout line = Ui.row(this);
-    line.addView(Ui.icon(this, "shield", n && e ? Ui.TEAL : Ui.AMBER, 32));
+    line.addView(Ui.icon(this, "shield", ready ? Ui.TEAL : Ui.AMBER, 32));
     TextView title =
         Ui.text(
             this,
-            n && e ? "Essenciais ativados" : "Seus alertas precisam de atenção",
+            ready ? "Alarmes e tela cheia prontos" : "Seus alertas precisam de atenção",
             18,
-            n && e ? Ui.TEAL : Ui.AMBER,
+            ready ? Ui.TEAL : Ui.AMBER,
             true);
     LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, -2, 1);
     tp.leftMargin = dp(14);
@@ -741,8 +742,8 @@ public final class MainActivity extends Activity {
                     Uri.parse("package:" + getPackageName()))));
     permission(
         body,
-        "Alarme na tela bloqueada",
-        "Permite abrir a tela de alarme quando o Android autorizar.",
+        "Tela cheia na tela bloqueada",
+        "Autorize a abertura do alarme com o celular bloqueado.",
         f,
         () -> {
           if (Build.VERSION.SDK_INT >= 34)
@@ -752,6 +753,22 @@ public final class MainActivity extends Activity {
                     Uri.parse("package:" + getPackageName())));
           else Ui.toast(this, "Seu Android já permite essa opção.");
         });
+    permission(
+        body,
+        "Tela cheia com o celular em uso",
+        "Permita aparecer sobre outros apps para abrir o alarme também durante o uso do celular.",
+        over,
+        () ->
+            open(
+                new Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + getPackageName()))));
+    permission(
+        body,
+        "Som no Não perturbe",
+        "O modo ativo do celular precisa permitir alarmes.",
+        dnd,
+        this::dndOptions);
     permission(
         body,
         "Bateria sem restrições",
@@ -767,8 +784,8 @@ public final class MainActivity extends Activity {
         body,
         Ui.text(
             this,
-            "O teste tem os botões Encerrar teste e Adiar. Expanda a notificação ou toque nela"
-                + " para abrir esses controles. Nenhuma dose ou estoque será alterado.",
+            "O teste abre a tela de alarme quando as permissões acima estão ativas. Há apenas um"
+                + " aviso, com Encerrar teste e Adiar. Nenhuma dose ou estoque será alterado.",
             12,
             Ui.MUTED,
             false),
@@ -794,12 +811,14 @@ public final class MainActivity extends Activity {
                 new Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
                     .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName())
                     .putExtra(Settings.EXTRA_CHANNEL_ID, Alerts.CHANNEL)));
-    option(body, "Volume de alarmes", volumeLabel(), this::volume);
+    option(body, "Volume mínimo do alarme", volumeLabel(), this::volume);
+    toggle(
+        body, "Som do alarme", "Tocar por até 1 minuto, usando o áudio de alarmes.", "ring", true);
     toggle(
         body,
-        "Som contínuo",
-        "Tocar por até 1 minuto. O som inicial é definido no Android.",
-        "ring",
+        "Tocar no vibrar ou silencioso",
+        "Usa o volume mínimo do Dose durante o alarme e restaura o volume anterior ao finalizar.",
+        "force_sound",
         true);
     toggle(
         body,
@@ -813,7 +832,7 @@ public final class MainActivity extends Activity {
         "Privacidade na tela bloqueada",
         "Ocultar os detalhes até desbloquear o aparelho.",
         "private",
-        true);
+        false);
     option(
         body,
         "Repetir se eu não responder",
@@ -859,8 +878,8 @@ public final class MainActivity extends Activity {
         note,
         Ui.text(
             this,
-            "O Não perturbe e o volume de alarmes seguem suas escolhas no Android. Se quiser ouvir"
-                + " durante o Não perturbe, permita alarmes nas configurações do sistema.",
+            "O som do Dose usa o áudio de alarmes, separado do toque de chamadas. No Não perturbe,"
+                + " permita alarmes no modo ativo do sistema. O app não desativa esse modo.",
             13,
             Ui.MUTED,
             false),
@@ -927,7 +946,7 @@ public final class MainActivity extends Activity {
         body,
         Ui.text(
             this,
-            "Dose 1.1.0 • Funciona sem conta e sem internet.\n"
+            "Dose 1.3.0 • Funciona sem conta e sem internet.\n"
                 + "Os dados ficam neste aparelho. Faça backups antes de desinstalar. Cadastre"
                 + " apenas os horários da sua prescrição.",
             12,
@@ -996,29 +1015,25 @@ public final class MainActivity extends Activity {
   }
 
   private String volumeLabel() {
-    AudioManager audio = (AudioManager) getSystemService(AUDIO_SERVICE);
-    return "Volume atual: "
-        + Math.round(
-            audio.getStreamVolume(AudioManager.STREAM_ALARM)
-                * 100f
-                / audio.getStreamMaxVolume(AudioManager.STREAM_ALARM))
-        + "%";
+    return "No mínimo "
+        + AlarmAudio.minimumPercent(this)
+        + "% durante o alarme; o volume anterior volta ao finalizar.";
   }
 
   private void volume() {
-    AudioManager audio = (AudioManager) getSystemService(AUDIO_SERVICE);
     SeekBar seek = new SeekBar(this);
-    seek.setMax(audio.getStreamMaxVolume(AudioManager.STREAM_ALARM));
-    seek.setProgress(audio.getStreamVolume(AudioManager.STREAM_ALARM));
+    seek.setMax(99);
+    seek.setProgress(AlarmAudio.minimumPercent(this) - 1);
+    LinearLayout body = Ui.column(this);
+    body.setPadding(dp(22), dp(12), dp(22), dp(10));
+    TextView label =
+        Ui.text(this, "Volume mínimo: " + AlarmAudio.minimumPercent(this) + "%", 16, Ui.INK, true);
+    body.addView(label);
+    Ui.add(body, seek, 14);
     seek.setOnSeekBarChangeListener(
         new SeekBar.OnSeekBarChangeListener() {
-          public void onProgressChanged(SeekBar v, int p, boolean user) {
-            if (user)
-              try {
-                audio.setStreamVolume(AudioManager.STREAM_ALARM, p, 0);
-              } catch (SecurityException e) {
-                Ui.toast(MainActivity.this, "Ajuste o volume nas configurações do Android.");
-              }
+          public void onProgressChanged(SeekBar v, int progress, boolean user) {
+            label.setText("Volume mínimo: " + (progress + 1) + "%");
           }
 
           public void onStartTrackingTouch(SeekBar v) {}
@@ -1026,9 +1041,32 @@ public final class MainActivity extends Activity {
           public void onStopTrackingTouch(SeekBar v) {}
         });
     new AlertDialog.Builder(this)
-        .setTitle("Volume de alarmes")
-        .setView(seek)
-        .setPositiveButton("Pronto", (a, b) -> render())
+        .setTitle("Volume mínimo do alarme")
+        .setView(body)
+        .setNegativeButton("Cancelar", null)
+        .setPositiveButton(
+            "Salvar",
+            (a, b) -> {
+              Prefs.get(this).edit().putInt("alarm_min_volume", seek.getProgress() + 1).apply();
+              render();
+            })
+        .show();
+  }
+
+  private void dndOptions() {
+    new AlertDialog.Builder(this)
+        .setTitle("Som no Não perturbe")
+        .setMessage(
+            "Permita alarmes no modo Não perturbe ativo. Você também pode autorizar o Dose como"
+                + " exceção de notificações. O Android continua controlando os modos que bloqueiam"
+                + " todos os alarmes.")
+        .setPositiveButton(
+            "Permitir alarmes",
+            (a, b) -> open(new Intent(Settings.ACTION_ZEN_MODE_PRIORITY_SETTINGS)))
+        .setNeutralButton(
+            "Autorizar Dose",
+            (a, b) -> open(new Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)))
+        .setNegativeButton("Voltar", null)
         .show();
   }
 
@@ -1134,7 +1172,7 @@ public final class MainActivity extends Activity {
               try {
                 Store.get(this).snooze(d.id, values[index], System.currentTimeMillis());
                 Alerts.cancel(this, d.id);
-                stopService(new Intent(this, RingingService.class));
+                RingingService.stopSound(this);
                 AlarmEngine.refresh(this);
                 render();
               } catch (IllegalArgumentException e) {
@@ -1260,7 +1298,7 @@ public final class MainActivity extends Activity {
         synchronized (AlarmEngine.LOCK) {
           Store.get(this).importJson(root);
           ((NotificationManager) getSystemService(NOTIFICATION_SERVICE)).cancelAll();
-          stopService(new Intent(this, RingingService.class));
+          RingingService.stopSound(this);
           Store.get(this).rezone(System.currentTimeMillis());
           AlarmEngine.refresh(this);
         }

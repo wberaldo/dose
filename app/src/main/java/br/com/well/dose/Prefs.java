@@ -31,6 +31,23 @@ public final class Prefs {
     return get(c).getBoolean("fullscreen", true);
   }
 
+  public static boolean privateAlarm(Context c) {
+    return get(c).getBoolean("private", false);
+  }
+
+  /** This release's requested alarm profile; later changes by the user remain in force. */
+  public static void upgradeAlarms(Context c) {
+    if (get(c).getBoolean("alarm_profile_130", false)) return;
+    get(c)
+        .edit()
+        .putBoolean("fullscreen", true)
+        .putBoolean("ring", true)
+        .putBoolean("force_sound", true)
+        .putBoolean("private", false)
+        .putBoolean("alarm_profile_130", true)
+        .commit();
+  }
+
   public static void error(Context c, String text) {
     get(c)
         .edit()

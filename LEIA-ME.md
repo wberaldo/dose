@@ -4,15 +4,15 @@ Aplicativo nativo em português para organizar medicamentos e lembrar os horári
 
 ## Atualizar de versões anteriores
 
-Abra o APK 1.2.0 e escolha **Atualizar**. O pacote e a chave de assinatura são os mesmos; medicamentos, histórico, estoque e preferências permanecem no aparelho. Não desinstale a versão anterior para atualizar.
+Abra o APK 1.3.0 e escolha **Atualizar**. O pacote e a chave de assinatura são os mesmos; medicamentos, histórico, estoque e preferências permanecem no aparelho. Não desinstale a versão anterior para atualizar.
 
 ## Instalar e começar
 
-1. No celular, abra `Dose-1.2.0.apk` e siga a instalação. Se o Android solicitar, autorize a instalação de apps pela fonte usada para abrir o arquivo.
+1. No celular, abra `Dose-1.3.0.apk` e siga a instalação. Se o Android solicitar, autorize a instalação de apps pela fonte usada para abrir o arquivo.
 2. Abra o Dose e toque em **Cadastrar medicamento** ou **Remédios → Novo medicamento**.
 3. Informe nome, concentração se desejar, quantidade por dose, unidade, horários, dias da semana e período. Use os horários da sua prescrição.
-4. Na aba **Alertas**, ative **Notificações** e **Alarmes e lembretes**. Confira também **Alarme na tela bloqueada** e a configuração de bateria.
-5. Toque em **Testar alarme em 15 segundos**, bloqueie a tela e aguarde. O teste não registra uma dose nem altera o estoque. Para encerrar ou adiar, expanda a notificação ou toque nela. O teste oferece **Encerrar teste** e **Adiar** mesmo com a privacidade ativada; as notificações de medicamentos continuam protegendo seus detalhes.
+4. Na aba **Alertas**, autorize **Notificações**, **Alarmes e lembretes**, **Tela cheia na tela bloqueada** e **Tela cheia com o celular em uso**. Esta última abre a autorização do Android para aparecer sobre outros apps. Se usar Não perturbe, permita alarmes no modo ativo. Confira também a configuração de bateria.
+5. Toque em **Testar alarme em 15 segundos**, bloqueie a tela e aguarde. O teste não registra uma dose nem altera o estoque. O teste abre a tela de alarme quando as permissões estão ativas e mantém apenas uma notificação, com **Encerrar teste** e **Adiar**. Nenhuma confirmação é criada no histórico.
 
 O app inicia vazio. Não importa nem presume medicamentos, doses ou horários pessoais.
 
@@ -46,11 +46,14 @@ Ele reconhece o formato em português mostrado nesta entrega. Se não reconhecer
 - Agendamento nativo com `AlarmManager` e alarmes exatos autorizados pelo usuário.
 - Avisos com ações independentes **Tomei** e **Adiar**. Cada ação identifica a ocorrência da dose; um duplo clique não desconta o estoque novamente.
 - Agrupamento no mesmo despacho quando várias doses vencem juntas; cada uma mantém seu próprio registro e sua própria notificação.
-- Som de alarme contínuo por até 60 segundos e vibração, usando o mecanismo nativo de toques do Android e respeitando configurações do canal, volume e Não perturbe.
-- Som próprio incluído no APK. Se um arquivo de áudio escolhido não puder ser aberto, o som contínuo usa o áudio de reserva do app. A escolha de silenciar o canal continua sendo respeitada.
+- Uma notificação por dose. O serviço de áudio usa o mesmo identificador do lembrete; não cria um aviso extra de alarme tocando. Ao parar o som, o lembrete permanece até confirmar ou adiar.
+- Som contínuo por até 60 segundos, com MediaPlayer e USAGE_ALARM, separado do modo de toque de chamadas. Funciona nos modos vibrar e silencioso quando o Android permite alarmes.
+- A opção **Tocar no vibrar ou silencioso** usa um volume mínimo de 70% por padrão, ajustável em Alertas. O app eleva somente o áudio de alarmes se necessário e restaura o nível anterior ao finalizar, confirmar ou adiar. Ajustes de volume feitos durante a reprodução são preservados. Há recuperação agendada do nível anterior se o processo terminar inesperadamente. Os limites mínimo e máximo do aparelho continuam valendo.
+- Som próprio incluído no APK. Se um arquivo de áudio escolhido não puder ser aberto, o som contínuo usa o áudio de reserva do app. Com a opção de tocar no vibrar ou silencioso ativa, um canal sem som usa o áudio de reserva. É possível desligar o som do Dose em Alertas.
 - Repetições configuráveis: inicialmente a cada 5 minutos, com até 3 repetições após o aviso inicial. É possível desativar as repetições.
 - Adiamento rápido configurável pela notificação; na agenda há opções de 5, 10, 15 ou 30 minutos.
-- Tela de alarme na tela bloqueada quando o sistema permitir. Com privacidade ativa, os detalhes e a confirmação exigem desbloqueio.
+- Tela cheia com nome, dose, concentração, desenho, cores, horário e observações; Tomei e Adiar ficam fixos enquanto os detalhes podem rolar. A tela bloqueada usa a autorização de tela cheia do Android. Para abrir também sobre um app em uso, autorize aparecer sobre outros apps. Sem essa segunda autorização, o Android pode usar somente um aviso no topo enquanto o celular está desbloqueado.
+- O perfil desta atualização ativa som, tela cheia e detalhes visíveis na tela bloqueada, conforme a solicitação. Em **Alertas → Privacidade na tela bloqueada**, é possível voltar a exigir desbloqueio para mostrar detalhes e confirmar. Alterações feitas após a atualização são mantidas.
 - Reagendamento após reinício, atualização do aplicativo, alteração de relógio/fuso e concessão da permissão de alarme exato.
 - As próximas ocorrências ficam registradas no banco. O agendamento não depende de uma tela aberta, conexão com a internet ou serviço permanente.
 - Uma verificação de manutenção separada mantém a agenda atualizada. Ela usa um alarme aproximado e não aparece como um alarme de medicamento no relógio do sistema.
@@ -82,7 +85,7 @@ Os próximos lembretes recebem a aparência atualizada. Doses já confirmadas ma
 
 Em **Configurações → Bateria → Limites de uso em segundo plano**, coloque o Dose nos aplicativos que nunca entram em suspensão. Se disponível, em **Informações do app → Bateria**, escolha **Sem restrições**. A nomenclatura varia conforme a versão do sistema.
 
-Confira o volume de **Alarmes** e o canal **Alarmes de medicamentos**. Se usar Não perturbe, permita alarmes conforme sua preferência. O app não altera essas escolhas silenciosamente.
+Confira **Alertas → Volume mínimo do alarme**. O modo vibrar ou silencioso de chamadas é mantido. Para tocar durante Não perturbe, permita alarmes no modo ativo do sistema; o app oferece o atalho e a autorização de exceção de notificações. Um modo que bloqueia todos os alarmes continua sujeito à política do Android; o app não desativa globalmente o Não perturbe.
 
 Depois de reiniciar o celular, desbloqueie-o uma vez para liberar o banco de dados privado. Após usar **Forçar parada**, abra o Dose novamente: o Android interrompe os agendamentos de apps forçados a parar.
 
@@ -107,7 +110,7 @@ sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0' 'platform-tools'
 python3 tools/build.py --sdk /caminho/absoluto/android-sdk --test
 ```
 
-Requer Java 17 com o compilador (`java com.sun.tools.javac.Main`) e `keytool`, Python 3 e o SDK oficial. O APK assinado sai em `build/Dose-1.2.0.apk`.
+Requer Java 17 com o compilador (`java com.sun.tools.javac.Main`) e `keytool`, Python 3 e o SDK oficial. O APK assinado sai em `build/Dose-1.3.0.apk`.
 
 `signing/` contém a chave pessoal usada nesta versão e sua configuração local. Guarde essa pasta para assinar futuras atualizações compatíveis com o APK instalado. A chave e sua senha pertencem à entrega pessoal; a pasta `signing/` não é versionada. Guarde a chave para gerar atualizações da instalação existente. A compilação pelo Android Studio usa a configuração de assinatura escolhida no próprio Studio.
 
@@ -136,7 +139,11 @@ Nenhum repositório remoto foi configurado e nenhum push foi realizado. Depois d
 - Alarmes e permissões: https://developer.android.com/develop/background-work/services/alarms
 - Permissão de notificações: https://developer.android.com/develop/ui/compose/notifications/notification-permission
 - Tipos de serviço em primeiro plano: https://developer.android.com/develop/background-work/services/fgs/service-types
-- Reprodução de toques e alertas: https://developer.android.com/reference/android/media/Ringtone
+- Áudio de alarmes: https://developer.android.com/reference/android/media/MediaPlayer
+- Abertura de atividades em segundo plano: https://developer.android.com/guide/components/activities/secure-bal
+- Tela cheia: https://source.android.com/docs/core/permissions/fsi-limits
+- Serviço associado ao lembrete: https://developer.android.com/reference/android/app/Service#STOP_FOREGROUND_DETACH
+- Não perturbe e políticas: https://developer.android.com/reference/android/app/NotificationManager
 - Restrições para tela cheia: https://developer.android.com/about/versions/14/behavior-changes-14
 
-Versão 1.2.0. Entrega pessoal instalável; não publicada na Play Store.
+Versão 1.3.0. Entrega pessoal instalável; não publicada na Play Store.

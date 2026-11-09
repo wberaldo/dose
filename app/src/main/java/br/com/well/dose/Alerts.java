@@ -6,6 +6,7 @@ import android.content.*;
 import android.content.pm.PackageManager;
 import android.media.*;
 import android.os.*;
+import android.provider.Settings;
 import java.time.*;
 
 public final class Alerts {
@@ -30,6 +31,8 @@ public final class Alerts {
     alarm.setVibrationPattern(new long[] {0, 400, 220, 400, 220, 650});
     alarm.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
     alarm.setShowBadge(true);
+    if (nm.isNotificationPolicyAccessGranted() && Prefs.get(c).getBoolean("force_sound", true))
+      alarm.setBypassDnd(true);
     nm.createNotificationChannel(alarm);
     NotificationChannel info =
         new NotificationChannel(INFO, "Estado do alarme", NotificationManager.IMPORTANCE_LOW);
@@ -53,6 +56,32 @@ public final class Alerts {
     return Build.VERSION.SDK_INT < 34
         || ((NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE))
             .canUseFullScreenIntent();
+  }
+
+  public static boolean overOtherApps(Context c) {
+    return Settings.canDrawOverlays(c);
+  }
+
+  public static Intent openIntent(Context c, long id) {
+    return new Intent(c, AlarmActivity.class)
+        .putExtra("dose_id", id)
+        .setData(android.net.Uri.parse("dose://open/" + id))
+        .addFlags(
+            Intent.FLAG_ACTIVITY_NEW_TASK
+                | Intent.FLAG_ACTIVITY_CLEAR_TOP
+                | Intent.FLAG_ACTIVITY_NO_USER_ACTION);
+  }
+
+  public static void openFullScreen(Context c, long id) {
+    if (!Prefs.fullscreen(c) || !overOtherApps(c)) return;
+    try {
+      c.startActivity(openIntent(c, id));
+    } catch (RuntimeException e) {
+      Prefs.error(
+          c,
+          "O Android impediu abrir a tela de alarme. Confira a permissão de aparecer sobre outros"
+              + " apps.");
+    }
   }
 
   private static PendingIntent action(Context c, long id, String action) {
@@ -86,14 +115,19 @@ public final class Alerts {
       if (med != null && med.stock >= 0 && med.stock <= 5)
         more += "\nEstoque baixo: " + ScheduleRules.number(med.stock) + " " + med.unit + ".";
     }
-    Intent open =
-        new Intent(c, AlarmActivity.class)
-            .putExtra("dose_id", id)
-            .setData(android.net.Uri.parse("dose://open/" + id))
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+    Intent open = openIntent(c, id);
+    Bundle options = null;
+    if (Build.VERSION.SDK_INT >= 35) {
+      ActivityOptions activityOptions = ActivityOptions.makeBasic();
+      activityOptions.setPendingIntentCreatorBackgroundActivityStartMode(
+          Build.VERSION.SDK_INT >= 36
+              ? ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOW_ALWAYS
+              : ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED);
+      options = activityOptions.toBundle();
+    }
     PendingIntent content =
         PendingIntent.getActivity(
-            c, 0, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            c, 0, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE, options);
     Notification publicVersion =
         new Notification.Builder(c, CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
@@ -109,7 +143,7 @@ public final class Alerts {
             .setColor(test ? 0xFF137C70 : d.color)
             .setCategory(Notification.CATEGORY_ALARM)
             .setVisibility(
-                !test && Prefs.get(c).getBoolean("private", true)
+                !test && Prefs.privateAlarm(c)
                     ? Notification.VISIBILITY_PRIVATE
                     : Notification.VISIBILITY_PUBLIC)
             .setContentIntent(content)
@@ -126,7 +160,7 @@ public final class Alerts {
     Notification.Action.Builder take =
         new Notification.Action.Builder(
             null, test ? "Encerrar teste" : "Tomei", action(c, id, test ? "END_TEST" : "TAKE"));
-    if (!test && Build.VERSION.SDK_INT >= 31 && Prefs.get(c).getBoolean("private", true))
+    if (!test && Build.VERSION.SDK_INT >= 31 && Prefs.privateAlarm(c))
       take.setAuthenticationRequired(true);
     b.addAction(take.build());
     b.addAction(
@@ -135,8 +169,9 @@ public final class Alerts {
                 "Adiar " + Prefs.snooze(c) + " min",
                 action(c, id, test ? "SNOOZE_TEST" : "SNOOZE"))
             .build());
-    if (ringing && Prefs.fullscreen(c) && fullScreenAllowed(c))
-      b.setFullScreenIntent(content, true);
+    if (Prefs.fullscreen(c) && fullScreenAllowed(c)) b.setFullScreenIntent(content, true);
+    if (Build.VERSION.SDK_INT >= 31)
+      b.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE);
     return b.build();
   }
 
@@ -152,49 +187,12 @@ public final class Alerts {
 
   public static void test(Context c) {
     channels(c);
+    Prefs.get(c).edit().putBoolean("test_visible", true).commit();
     ((NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE))
         .notify(TEST_ID, notification(c, null, true));
   }
 
   public static void cancel(Context c, long id) {
     ((NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE)).cancel((int) id);
-  }
-
-  public static Notification serviceNotification(Context c, boolean test) {
-    PendingIntent open =
-        PendingIntent.getActivity(
-            c,
-            901,
-            new Intent(c, AlarmActivity.class)
-                .putExtra("dose_id", test ? -1L : 0L)
-                .setData(android.net.Uri.parse("dose://service/" + (test ? "test" : "doses"))),
-            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-    PendingIntent silence =
-        PendingIntent.getService(
-            c,
-            902,
-            new Intent(c, RingingService.class).setAction("SILENCE"),
-            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-    Notification.Builder b =
-        new Notification.Builder(c, INFO)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(test ? "Dose • alarme de teste" : "Dose • alarme tocando")
-            .setContentText(
-                test
-                    ? "Toque para adiar ou encerrar o teste. Nenhuma dose será registrada."
-                    : "O som para em até 1 minuto. Os lembretes ficam disponíveis.")
-            .setContentIntent(open)
-            .setOngoing(true)
-            .setVisibility(test ? Notification.VISIBILITY_PUBLIC : Notification.VISIBILITY_PRIVATE);
-    if (test) {
-      b.addAction(
-          new Notification.Action.Builder(null, "Encerrar teste", action(c, -1, "END_TEST"))
-              .build());
-      b.addAction(
-          new Notification.Action.Builder(
-                  null, "Adiar " + Prefs.snooze(c) + " min", action(c, -1, "SNOOZE_TEST"))
-              .build());
-    } else b.addAction(new Notification.Action.Builder(null, "Silenciar som", silence).build());
-    return b.build();
   }
 }

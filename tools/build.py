@@ -3,8 +3,8 @@
 import argparse, json, os, pathlib, secrets, subprocess, zipfile, shutil, xml.etree.ElementTree as ET
 
 ROOT=pathlib.Path(__file__).resolve().parents[1]
-VERSION_NAME='1.2.0'
-VERSION_CODE='4'
+VERSION_NAME='1.3.0'
+VERSION_CODE='5'
 p=argparse.ArgumentParser()
 p.add_argument('--sdk',default=os.environ.get('ANDROID_SDK_ROOT',os.environ.get('ANDROID_HOME','')))
 p.add_argument('--test',action='store_true')

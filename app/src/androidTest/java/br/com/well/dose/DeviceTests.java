@@ -40,6 +40,12 @@ public final class DeviceTests extends Instrumentation {
       else if ("appearance_seed_v2".equals(mode)) appearanceSeedV2();
       else if ("appearance_migration".equals(mode)) appearanceMigration();
       else if ("appearance".equals(mode)) appearanceChecks();
+      else if ("alarms".equals(mode)) alarmChecks();
+      else if ("upgrade_seed130".equals(mode)) upgradeSeed130();
+      else if ("upgrade_verify130".equals(mode)) upgradeVerify130();
+      else if ("seed_alarm_ui".equals(mode)) seedAlarmUi();
+      else if ("verify_alarm_ui".equals(mode)) verifyAlarmUi();
+      else if ("verify_ui_action".equals(mode)) verifyUiAction();
       else if ("appearance_editor".equals(mode)) appearanceEditor();
       else if ("verify_appearance_ui".equals(mode)) verifyAppearanceUi();
       else if ("import_fixture".equals(mode)) importFixture();
@@ -113,7 +119,13 @@ public final class DeviceTests extends Instrumentation {
     }
     db.getWritableDatabase().delete("doses", null, null);
     db.getWritableDatabase().delete("meds", null, null);
-    Prefs.get(c).edit().clear().commit();
+    try {
+      if (c.getPackageManager().getPackageInfo(c.getPackageName(), 0).versionCode >= 5)
+        AlarmAudio.releaseVolume(c);
+    } catch (android.content.pm.PackageManager.NameNotFoundException e) {
+      throw new IllegalStateException(e);
+    }
+    Prefs.get(c).edit().clear().putBoolean("fullscreen", false).commit();
   }
 
   private Medication medication(String name) {
@@ -859,6 +871,333 @@ public final class DeviceTests extends Instrumentation {
         "agenda gerada após salvar usa o desenho e as duas cores escolhidas");
   }
 
+  private void upgradeSeed130() throws Exception {
+    // The old app has no AlarmAudio class: do not call clear() in this mode.
+    db.getWritableDatabase().delete("import_links", null, null);
+    db.getWritableDatabase().delete("import_sources", null, null);
+    db.getWritableDatabase().delete("doses", null, null);
+    db.getWritableDatabase().delete("meds", null, null);
+    Medication m = medication("Cadastro para atualizar");
+    m.icon = "capsule_short";
+    m.color = 0xFFD94343;
+    m.secondaryColor = 0xFFFFFFFF;
+    db.save(m, System.currentTimeMillis());
+    db.maintain(System.currentTimeMillis());
+    db.resolve(future(m.id).id, "taken", System.currentTimeMillis());
+    db.mergeImport(
+        new MedicationImport(
+            importRoot(
+                    new JSONArray()
+                        .put(importRecord("Importado para atualizar", "paused", "08:00")))
+                .toString(),
+            LocalDate.now()),
+        System.currentTimeMillis());
+    Prefs.get(c)
+        .edit()
+        .putString("theme", "dark")
+        .putBoolean("private", true)
+        .putBoolean("ring", false)
+        .putBoolean("fullscreen", false)
+        .putInt("snooze_minutes", 15)
+        .remove("alarm_profile_130")
+        .commit();
+    java.nio.file.Files.write(
+        new java.io.File(c.getFilesDir(), "upgrade130.json").toPath(),
+        db.exportJson().toString().getBytes("UTF-8"));
+    check(
+        db.medications().size() == 2 && db.history().size() == 1,
+        "base da versão 1.2.0 contém cadastro, cores, estoque, importação e histórico");
+  }
+
+  private void upgradeVerify130() throws Exception {
+    JSONObject old =
+        new JSONObject(
+            new String(
+                java.nio.file.Files.readAllBytes(
+                    new java.io.File(c.getFilesDir(), "upgrade130.json").toPath()),
+                "UTF-8"));
+    JSONObject fresh = new JSONObject(db.exportJson().toString());
+    for (String table : new String[] {"meds", "doses", "import_sources", "import_links"})
+      check(
+          old.getJSONArray(table).toString().equals(fresh.getJSONArray(table).toString()),
+          "atualização 1.3.0 preserva integralmente " + table);
+    check(
+        Prefs.fullscreen(c)
+            && Prefs.ring(c)
+            && !Prefs.privateAlarm(c)
+            && Prefs.get(c).getBoolean("force_sound", false),
+        "atualização ativa o perfil solicitado de tela cheia, detalhes e som de alarme");
+    check(
+        Prefs.get(c).getString("theme", "").equals("dark") && Prefs.snooze(c) == 15,
+        "preferências de tema e adiamento são mantidas");
+    Prefs.get(c).edit().putBoolean("private", true).putBoolean("fullscreen", false).commit();
+    Prefs.upgradeAlarms(c);
+    check(
+        Prefs.privateAlarm(c) && !Prefs.fullscreen(c),
+        "alterações posteriores do usuário no perfil não são sobrescritas");
+  }
+
+  private Dose alarmDue(Medication med) {
+    db.maintain(System.currentTimeMillis());
+    Dose d = future(med.id);
+    long now = System.currentTimeMillis();
+    ContentValues v = new ContentValues();
+    v.put("scheduled", now - 1000);
+    v.put("next_alert", now - 500);
+    v.put("expires", now + 3600000);
+    db.getWritableDatabase().update("doses", v, "id=?", new String[] {"" + d.id});
+    return db.dose(d.id);
+  }
+
+  private boolean noticeExists(long id) {
+    return Arrays.stream(
+            ((NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE))
+                .getActiveNotifications())
+        .anyMatch(n -> n.getId() == id);
+  }
+
+  private int notices() {
+    // Android may add a group summary; the app's dose/test notices are its children.
+    return (int)
+        Arrays.stream(
+                ((NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE))
+                    .getActiveNotifications())
+            .filter(n -> (n.getNotification().flags & Notification.FLAG_GROUP_SUMMARY) == 0)
+            .count();
+  }
+
+  private boolean alarmPlaying() {
+    return ((android.media.AudioManager) c.getSystemService(Context.AUDIO_SERVICE))
+        .getActivePlaybackConfigurations().stream()
+            .anyMatch(
+                p ->
+                    p.getAudioAttributes().getUsage() == android.media.AudioAttributes.USAGE_ALARM);
+  }
+
+  private void awaitStopped() {
+    await(() -> Prefs.get(c).getLong("ringing_until", 0) == 0 && !alarmPlaying());
+  }
+
+  private void alarmChecks() throws Exception {
+    clear();
+    Activity foreground =
+        startActivitySync(
+            new Intent(c, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+    waitForIdleSync();
+    android.media.AudioManager audio =
+        (android.media.AudioManager) c.getSystemService(Context.AUDIO_SERVICE);
+    int oldMode = audio.getRingerMode(),
+        oldVolume = audio.getStreamVolume(android.media.AudioManager.STREAM_ALARM);
+    try {
+      audio.setStreamVolume(android.media.AudioManager.STREAM_ALARM, 0, 0);
+      int low = audio.getStreamVolume(android.media.AudioManager.STREAM_ALARM);
+      AlarmAudio.acquireVolume(c, System.currentTimeMillis() + 70000);
+      int minimum = audio.getStreamVolume(android.media.AudioManager.STREAM_ALARM);
+      check(
+          minimum > low, "volume baixo do aparelho recebe o mínimo configurado durante o lembrete");
+      AlarmAudio.acquireVolume(c, System.currentTimeMillis() + 70000);
+      AlarmAudio.releaseVolume(c);
+      check(
+          audio.getStreamVolume(android.media.AudioManager.STREAM_ALARM) == low,
+          "repetir o alarme preserva e restaura o volume original");
+      AlarmAudio.acquireVolume(c, System.currentTimeMillis() + 70000);
+      int adjusted = minimum > 1 ? minimum - 1 : minimum + 1;
+      audio.setStreamVolume(android.media.AudioManager.STREAM_ALARM, adjusted, 0);
+      AlarmAudio.releaseVolume(c);
+      check(
+          audio.getStreamVolume(android.media.AudioManager.STREAM_ALARM) == adjusted,
+          "restauração mantém um ajuste de volume feito pelo usuário durante o alarme");
+      audio.setStreamVolume(android.media.AudioManager.STREAM_ALARM, 0, 0);
+      AlarmAudio.acquireVolume(c, System.currentTimeMillis() - 1);
+      await(() -> audio.getStreamVolume(android.media.AudioManager.STREAM_ALARM) == low);
+      check(true, "recuperação agendada restaura o volume mesmo sem serviço ativo");
+      for (int mode :
+          new int[] {
+            android.media.AudioManager.RINGER_MODE_VIBRATE,
+            android.media.AudioManager.RINGER_MODE_SILENT
+          }) {
+        clear();
+        audio.setRingerMode(mode);
+        audio.setStreamVolume(android.media.AudioManager.STREAM_ALARM, 0, 0);
+        int modeLow = audio.getStreamVolume(android.media.AudioManager.STREAM_ALARM);
+        check(
+            AlarmAudio.dndAllowsAlarms(c),
+            "modo " + mode + " está separado de um bloqueio de alarmes pelo Não perturbe");
+        Dose d = alarmDue(medication("Alarme para modo " + mode));
+        AlarmEngine.tick(c);
+        await(() -> alarmPlaying() && noticeExists(d.id));
+        check(
+            audio.getRingerMode() == mode
+                && audio.getStreamVolume(android.media.AudioManager.STREAM_ALARM) > 0,
+            "áudio real USAGE_ALARM funciona no modo " + mode + " sem mudar o modo de toque");
+        check(
+            notices() == 1
+                && !noticeExists(Alerts.SERVICE_ID)
+                && (posted((int) d.id).flags & Notification.FLAG_FOREGROUND_SERVICE) != 0,
+            "serviço e lembrete compartilham uma única notificação no modo " + mode);
+        RingingService.stopSound(c);
+        awaitStopped();
+        report
+            .append("STOP_STATE mode=")
+            .append(mode)
+            .append(" count=")
+            .append(notices())
+            .append(" exists=")
+            .append(noticeExists(d.id))
+            .append(" playing=")
+            .append(alarmPlaying())
+            .append(" actions=")
+            .append(noticeExists(d.id) ? posted((int) d.id).actions.length : -1)
+            .append(" status=")
+            .append(db.dose(d.id).status)
+            .append(" expires=")
+            .append(db.dose(d.id).expires)
+            .append(" now=")
+            .append(System.currentTimeMillis())
+            .append('\n');
+        check(
+            notices() == 1
+                && noticeExists(d.id)
+                && posted((int) d.id).actions.length == 2
+                && !alarmPlaying(),
+            "parar o som mantém o único lembrete e seus dois botões no modo " + mode);
+        check(
+            audio.getStreamVolume(android.media.AudioManager.STREAM_ALARM) == modeLow,
+            "fim do som restaura o volume anterior no modo " + mode);
+        posted((int) d.id).actions[0].actionIntent.send();
+        await(() -> !noticeExists(d.id));
+        check(
+            db.dose(d.id).status.equals("taken") && db.medication(d.medId).stock == 29,
+            "Tomei continua confirmando e descontando uma vez no modo " + mode);
+      }
+      clear();
+      audio.setRingerMode(android.media.AudioManager.RINGER_MODE_NORMAL);
+      audio.setStreamVolume(android.media.AudioManager.STREAM_ALARM, 0, 0);
+      int snoozeLow = audio.getStreamVolume(android.media.AudioManager.STREAM_ALARM);
+      Dose d = alarmDue(medication("Adiar com som ativo"));
+      AlarmEngine.tick(c);
+      await(() -> alarmPlaying() && noticeExists(d.id));
+      posted((int) d.id).actions[1].actionIntent.send();
+      await(() -> db.dose(d.id).snoozed && !noticeExists(d.id));
+      awaitStopped();
+      check(
+          db.dose(d.id).nextAlert > System.currentTimeMillis()
+              && audio.getStreamVolume(android.media.AudioManager.STREAM_ALARM) == snoozeLow,
+          "Adiar remove a notificação única, encerra o som e restaura o volume");
+      clear();
+      Dose first = alarmDue(medication("Primeiro alarme simultâneo"));
+      Dose second = alarmDue(medication("Segundo alarme simultâneo"));
+      AlarmEngine.tick(c);
+      await(() -> alarmPlaying() && noticeExists(first.id) && noticeExists(second.id));
+      check(
+          notices() == 2 && !noticeExists(Alerts.SERVICE_ID),
+          "duas doses simultâneas têm dois lembretes, sem aviso auxiliar de serviço");
+      RingingService.stopSound(c);
+      awaitStopped();
+      check(notices() == 2, "fim do som não apaga nenhum dos lembretes simultâneos");
+      AlarmEngine.action(c, first.id, "TAKE");
+      await(() -> !noticeExists(first.id));
+      check(
+          notices() == 1 && noticeExists(second.id),
+          "confirmar uma dose preserva o lembrete da outra");
+      clear();
+      Prefs.get(c).edit().putLong("test_at", System.currentTimeMillis() - 1).commit();
+      AlarmEngine.tick(c);
+      await(() -> noticeExists(Alerts.TEST_ID) && alarmPlaying());
+      check(
+          notices() == 1 && posted(Alerts.TEST_ID).actions.length == 2,
+          "teste de alarme também usa um único aviso com Encerrar e Adiar");
+      posted(Alerts.TEST_ID).actions[1].actionIntent.send();
+      await(() -> !noticeExists(Alerts.TEST_ID));
+      awaitStopped();
+      check(
+          Prefs.get(c).getLong("test_at", 0) > System.currentTimeMillis()
+              && db.medications().isEmpty(),
+          "adiar o teste não cria medicamentos nem notificações auxiliares");
+      Prefs.get(c).edit().putBoolean("fullscreen", true).putBoolean("private", false).commit();
+      Notification full = Alerts.notification(c, first, true);
+      check(
+          full.fullScreenIntent != null
+              && full.visibility == Notification.VISIBILITY_PUBLIC
+              && !full.actions[0].isAuthenticationRequired(),
+          "perfil de tela cheia inclui detalhes e botões sem exigir desbloqueio");
+    } finally {
+      RingingService.stopSound(c);
+      awaitStopped();
+      AlarmAudio.releaseVolume(c);
+      audio.setRingerMode(oldMode);
+      audio.setStreamVolume(android.media.AudioManager.STREAM_ALARM, oldVolume, 0);
+      clear();
+      AlarmEngine.refresh(c);
+      runOnMainSync(foreground::finish);
+    }
+  }
+
+  private void seedAlarmUi() {
+    clear();
+    Prefs.get(c)
+        .edit()
+        .putBoolean("fullscreen", true)
+        .putBoolean("private", false)
+        .putBoolean("force_sound", true)
+        .putString("theme", "dark")
+        .commit();
+    android.media.AudioManager audio =
+        (android.media.AudioManager) c.getSystemService(Context.AUDIO_SERVICE);
+    audio.setRingerMode(android.media.AudioManager.RINGER_MODE_VIBRATE);
+    audio.setStreamVolume(android.media.AudioManager.STREAM_ALARM, 0, 0);
+    int beforeVolume = audio.getStreamVolume(android.media.AudioManager.STREAM_ALARM);
+    Medication m = medication("Medicamento de exemplo");
+    m.icon = "capsule_short";
+    m.color = 0xFFD94343;
+    m.secondaryColor = 0xFFFFFFFF;
+    m.strength = "10 mg";
+    m.notes = "Orientação fictícia para conferir o lembrete.\nApós uma refeição.";
+    db.save(m, System.currentTimeMillis());
+    db.maintain(System.currentTimeMillis());
+    Dose d = future(m.id);
+    long now = System.currentTimeMillis(), at = now + 15000;
+    ContentValues v = new ContentValues();
+    v.put("scheduled", at);
+    v.put("next_alert", at);
+    v.put("expires", at + 3600000);
+    db.getWritableDatabase().update("doses", v, "id=?", new String[] {"" + d.id});
+    Prefs.get(c)
+        .edit()
+        .putLong("ui_alarm_dose", d.id)
+        .putLong("ui_alarm_seed", now)
+        .putInt("ui_alarm_volume", beforeVolume)
+        .commit();
+    AlarmEngine.refresh(c);
+    report.append("UI_DOSE_ID=").append(d.id).append('\n');
+    check(
+        true, "alarme em tela cheia agendado em 15 segundos com vibrar e volume baixo de alarmes");
+  }
+
+  private void verifyAlarmUi() {
+    long id = Prefs.get(c).getLong("ui_alarm_dose", 0),
+        start = Prefs.get(c).getLong("ui_alarm_seed", 0);
+    Dose d = db.dose(id);
+    check(d != null && d.lastAlert >= start, "alarme agendado foi entregue após sair do app");
+    check(
+        Prefs.get(c).getLong("last_fullscreen", 0) >= start,
+        "atividade de alarme abriu automaticamente com o app em segundo plano");
+    check(
+        Prefs.get(c).getLong("last_audio", 0) >= start,
+        "som de alarme foi iniciado automaticamente no modo vibrar");
+  }
+
+  private void verifyUiAction() {
+    Dose d = db.dose(Prefs.get(c).getLong("ui_alarm_dose", 0));
+    String expected = args.getString("expected", "taken");
+    check(
+        d != null && (expected.equals("snoozed") ? d.snoozed : d.status.equals(expected)),
+        "botão da tela cheia executou a ação esperada: " + expected);
+    check(
+        db.medication(d.medId).stock == (expected.equals("taken") ? 29 : 30),
+        "botão da tela cheia mantém o estoque correto");
+  }
+
   private void importFixture() throws Exception {
     clear();
     int expectedRecords = Integer.parseInt(args.getString("expected_records", "0"));
@@ -1115,14 +1454,14 @@ public final class DeviceTests extends Instrumentation {
             && doses.equals(db.exportJson().getJSONArray("doses").toString())
             && db.medication(m.id).stock == 30,
         "ações do teste preservam medicamentos, estoque e todas as ocorrências");
-    Notification service = Alerts.serviceNotification(c, true);
+    Notification service = Alerts.notification(c, null, false);
     check(
         service.actions.length == 2 && service.visibility == Notification.VISIBILITY_PUBLIC,
-        "aviso do som de teste também oferece Encerrar e Adiar");
+        "notificação única do teste mantém Encerrar e Adiar");
     ActivityMonitor monitor = addMonitor(AlarmActivity.class.getName(), null, false);
     service.contentIntent.send();
     Activity alarm = waitForMonitorWithTimeout(monitor, 15000);
-    check(alarm != null, "toque no aviso do som abre a atividade real de alarme");
+    check(alarm != null, "toque no aviso único abre a atividade real de alarme");
     waitForIdleSync();
     runOnMainSync(
         () -> {
@@ -1130,7 +1469,7 @@ public final class DeviceTests extends Instrumentation {
               hasText(alarm, "Alarme de teste")
                   && hasText(alarm, "Adiar teste por " + Prefs.snooze(c) + " minutos")
                   && hasText(alarm, "Funcionou • encerrar teste"),
-              "aviso do som abre os controles do teste em vez da lista de doses");
+              "aviso único abre os controles do teste em vez da lista de doses");
           alarm.finish();
         });
     removeMonitor(monitor);

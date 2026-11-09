@@ -1,5 +1,16 @@
 # Alterações
 
+## 1.3.0
+
+- Une o aviso do serviço de áudio à notificação da dose, sem aviso auxiliar.
+- Mantém o lembrete e suas ações após encerrar o som.
+- Abre tela de alarme com dados e botões Tomei e Adiar fixos, inclusive sobre outros apps com autorização do Android.
+- Acrescenta atalhos para permissões de tela cheia, aparecer sobre outros apps e alarmes no Não perturbe.
+- Usa MediaPlayer com áudio de alarmes para tocar no modo vibrar ou silencioso.
+- Oferece volume mínimo temporário, restauração do volume anterior e recuperação após encerramento inesperado.
+- Na primeira atualização, ativa som, tela cheia e detalhes na tela bloqueada; escolhas posteriores do usuário são mantidas.
+- Preserva cadastros, cores, estoque, histórico, relatórios e backups.
+
 ## 1.2.0
 
 - Adiciona 12 formatos de medicamento com desenhos vetoriais.

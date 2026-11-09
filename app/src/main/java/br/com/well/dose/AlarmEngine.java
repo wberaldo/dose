@@ -17,6 +17,7 @@ public final class AlarmEngine {
   public static void refresh(Context c) {
     synchronized (LOCK) {
       Store.get(c).maintain(System.currentTimeMillis());
+      AlarmAudio.recoverExpired(c);
       cancelStale(c);
       schedule(c);
     }
@@ -53,7 +54,9 @@ public final class AlarmEngine {
       if (hasAlert) {
         Prefs.get(c).edit().putLong("last_delivery", now).apply();
         Intent service =
-            new Intent(c, RingingService.class).setAction(hasDoseAlert ? "RING" : "TEST");
+            new Intent(c, RingingService.class)
+                .setAction(hasDoseAlert ? "RING" : "TEST")
+                .putExtra("dose_id", hasDoseAlert ? due.get(0).id : -1L);
         try {
           c.startForegroundService(service);
         } catch (RuntimeException e) {
@@ -137,7 +140,8 @@ public final class AlarmEngine {
       return;
     synchronized (LOCK) {
       Alerts.cancel(c, Alerts.TEST_ID);
-      c.stopService(new Intent(c, RingingService.class));
+      Prefs.get(c).edit().remove("test_visible").commit();
+      RingingService.stopTest(c);
       if ("SNOOZE_TEST".equals(action))
         Prefs.get(c)
             .edit()
@@ -164,7 +168,7 @@ public final class AlarmEngine {
         Prefs.error(c, e.getMessage());
       }
       if (changed) Alerts.cancel(c, id);
-      c.stopService(new Intent(c, RingingService.class));
+      RingingService.stopSound(c);
       refresh(c);
       c.sendBroadcast(new Intent("br.com.well.dose.CHANGED").setPackage(c.getPackageName()));
     }
@@ -173,6 +177,10 @@ public final class AlarmEngine {
   public static void cancelStale(Context c) {
     NotificationManager nm = (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
     for (android.service.notification.StatusBarNotification n : nm.getActiveNotifications()) {
+      if (n.getId() == Alerts.SERVICE_ID) {
+        nm.cancel(n.getId());
+        continue;
+      }
       if (n.getId() > 0 && n.getId() < Alerts.SERVICE_ID) {
         Dose d = Store.get(c).dose(n.getId());
         if (d == null || !d.actionable() || d.snoozed) nm.cancel(n.getId());
