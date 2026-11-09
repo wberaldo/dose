@@ -43,6 +43,10 @@ public final class DeviceTests extends Instrumentation {
       else if ("alarms".equals(mode)) alarmChecks();
       else if ("today".equals(mode)) todayChecks();
       else if ("cancel_day".equals(mode)) cancelDayChecks();
+      else if ("drive_seed".equals(mode)) driveSeed();
+      else if ("drive".equals(mode)) driveChecks();
+      else if ("drive_job".equals(mode)) driveVerifyJob();
+      else if ("drive_failures".equals(mode)) driveFailureChecks();
       else if ("backups".equals(mode)) backupChecks();
       else if ("cloud_seed".equals(mode)) cloudSeed();
       else if ("cloud_verify".equals(mode)) cloudVerify();
@@ -143,6 +147,12 @@ public final class DeviceTests extends Instrumentation {
         CloudBackup.setEnabled(c, false);
         CloudBackup.prefs(c).edit().clear().commit();
       }
+    } catch (android.content.pm.PackageManager.NameNotFoundException e) {
+      throw new IllegalStateException(e);
+    }
+    try {
+      if (c.getPackageManager().getPackageInfo(c.getPackageName(), 0).versionCode >= 8)
+        DriveBackup.disconnect(c);
     } catch (android.content.pm.PackageManager.NameNotFoundException e) {
       throw new IllegalStateException(e);
     }
@@ -1538,6 +1548,301 @@ public final class DeviceTests extends Instrumentation {
     }
   }
 
+  /** Controlled document provider, present only in the separate test APK. */
+  public static final class DriveTestProvider extends ContentProvider {
+    private java.io.File file() {
+      return new java.io.File(getContext().getFilesDir(), "drive-test.json");
+    }
+
+    @Override
+    public boolean onCreate() {
+      return true;
+    }
+
+    @Override
+    public String getType(android.net.Uri uri) {
+      return "application/json";
+    }
+
+    @Override
+    public android.database.Cursor query(
+        android.net.Uri uri, String[] projection, String selection, String[] args, String sort) {
+      String[] columns =
+          projection == null
+              ? new String[] {
+                android.provider.OpenableColumns.DISPLAY_NAME, android.provider.OpenableColumns.SIZE
+              }
+              : projection;
+      android.database.MatrixCursor result = new android.database.MatrixCursor(columns);
+      Object[] row = new Object[columns.length];
+      for (int i = 0; i < columns.length; i++)
+        row[i] =
+            columns[i].equals(android.provider.OpenableColumns.DISPLAY_NAME)
+                ? "Dose-backup-teste.json"
+                : file().length();
+      result.addRow(row);
+      return result;
+    }
+
+    @Override
+    public ParcelFileDescriptor openFile(android.net.Uri uri, String mode)
+        throws java.io.FileNotFoundException {
+      return ParcelFileDescriptor.open(file(), ParcelFileDescriptor.parseMode(mode));
+    }
+
+    @Override
+    public android.net.Uri insert(android.net.Uri uri, ContentValues values) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int update(android.net.Uri uri, ContentValues values, String selection, String[] args) {
+      return 0;
+    }
+
+    @Override
+    public int delete(android.net.Uri uri, String selection, String[] args) {
+      return file().delete() ? 1 : 0;
+    }
+  }
+
+  private android.net.Uri driveUri() {
+    String value = args.getString("uri", "");
+    return value.isEmpty() ? DriveBackup.destination(c) : android.net.Uri.parse(value);
+  }
+
+  private JSONObject driveFile(android.net.Uri uri) throws Exception {
+    try (java.io.InputStream input = c.getContentResolver().openInputStream(uri)) {
+      return new JSONObject(new String(BackupFiles.read(input), "UTF-8"));
+    }
+  }
+
+  private void driveSeed() throws Exception {
+    clear();
+    Medication med = medication("Medicamento fictício para destino salvo");
+    db.maintain(System.currentTimeMillis());
+    db.resolve(future(med.id).id, "taken", System.currentTimeMillis());
+    db.cancelReminders(med.id, LocalDate.now());
+    Prefs.get(c)
+        .edit()
+        .putString("theme", "dark")
+        .putBoolean("private", true)
+        .putInt("snooze_minutes", 30)
+        .commit();
+    check(
+        DriveBackup.destination(c) == null && !DriveBackup.automatic(c),
+        "destino e diário começam desativados");
+    Intent create = DriveBackup.choose(false), open = DriveBackup.choose(true);
+    check(
+        Intent.ACTION_CREATE_DOCUMENT.equals(create.getAction())
+            && Intent.ACTION_OPEN_DOCUMENT.equals(open.getAction())
+            && (create.getFlags() & Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION) != 0,
+        "configuração pede acesso persistente e permite arquivo novo ou existente");
+  }
+
+  private void driveChecks() throws Exception {
+    android.net.Uri uri = driveUri();
+    Medication med = db.medications().get(0);
+    int flags = Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION;
+    if (DriveBackup.destination(c) == null) {
+      c.grantUriPermission(
+          c.getPackageName(), uri, flags | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+      DriveBackup.configure(c, uri, flags, false, new android.os.CancellationSignal());
+    }
+    check(
+        uri.equals(DriveBackup.destination(c)) && DriveBackup.hasAccess(c, uri),
+        "Android mantém a autorização persistente do documento de teste");
+    JSONObject initial = driveFile(uri);
+    check(
+        initial.getJSONArray("meds").length() == 1
+            && initial.getJSONArray("meds").getJSONObject(0).getDouble("stock") == 29
+            && initial.getJSONObject("settings").getString("theme").equals("dark"),
+        "primeiro backup grava cadastro, estoque e preferências completos no destino");
+    check(
+        initial.getJSONArray("reminder_mutes").length() == 1 && DriveBackup.hasLocalCopy(c),
+        "destino e cópia local preservam cancelamentos do dia");
+    long before = DriveBackup.prefs(c).getLong("saved_at", 0);
+    db.replenish(med.id, 17);
+    Activity activity =
+        startActivitySync(
+            new Intent(c, BackupActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+    try {
+      waitForIdleSync();
+      Instrumentation.ActivityMonitor picker =
+          addMonitor(new android.content.IntentFilter(Intent.ACTION_CREATE_DOCUMENT), null, false);
+      runOnMainSync(
+          () ->
+              views(activity.getWindow().getDecorView()).stream()
+                  .filter(
+                      v ->
+                          v instanceof TextView
+                              && ((TextView) v).getText().toString().equals("Fazer backup agora"))
+                  .findFirst()
+                  .get()
+                  .performClick());
+      await(() -> !DriveBackup.busy() && DriveBackup.prefs(c).getLong("saved_at", 0) > before);
+      check(
+          picker.getHits() == 0 && uri.equals(DriveBackup.destination(c)),
+          "botão real Fazer backup agora reutiliza o destino sem abrir seletor");
+      removeMonitor(picker);
+      check(
+          driveFile(uri).getJSONArray("meds").getJSONObject(0).getDouble("stock") == 17,
+          "backup seguinte atualiza o mesmo arquivo com os dados atuais");
+    } finally {
+      runOnMainSync(activity::finish);
+    }
+    DriveBackup.setAutomatic(c, true);
+    android.app.job.JobScheduler jobs =
+        (android.app.job.JobScheduler) c.getSystemService(Context.JOB_SCHEDULER_SERVICE);
+    android.app.job.JobInfo job = jobs.getPendingJob(DriveBackup.JOB_ID);
+    check(
+        job != null
+            && job.isPersisted()
+            && job.isPeriodic()
+            && job.getIntervalMillis() == DriveBackup.DAY
+            && job.getNetworkType() == android.app.job.JobInfo.NETWORK_TYPE_ANY,
+        "diário registra JobScheduler persistente de 24 horas com conexão");
+    check(
+        job.isRequireBatteryNotLow() && job.getService().getClassName().endsWith("DriveBackupJob"),
+        "trabalho diário usa o serviço de backup e exige bateria suficiente");
+    String previous = driveFile(uri).toString();
+    DriveBackup.configure(c, uri, flags, true, new android.os.CancellationSignal());
+    check(
+        previous.equals(driveFile(uri).toString())
+            && DriveBackup.prefs(c).getBoolean("needs_restore", false),
+        "vincular arquivo existente preserva integralmente sua cópia");
+    check(
+        !DriveBackup.automatic(c) && jobs.getPendingJob(DriveBackup.JOB_ID) == null,
+        "vincular cópia existente interrompe o diário até escolher os dados");
+    boolean blocked = false;
+    try {
+      DriveBackup.save(c, new android.os.CancellationSignal());
+    } catch (java.io.IOException expected) {
+      blocked = true;
+    }
+    check(
+        blocked && previous.equals(driveFile(uri).toString()),
+        "arquivo existente não é sobrescrito sem restauração ou confirmação");
+    blocked = false;
+    try {
+      DriveBackup.setAutomatic(c, true);
+    } catch (IllegalStateException expected) {
+      blocked = true;
+    }
+    check(blocked, "diário não ativa sobre cópia existente ainda protegida");
+    db.replenish(med.id, 99);
+    DriveBackup.restore(c, false, new android.os.CancellationSignal());
+    check(
+        db.medication(med.id).stock == 17
+            && db.history().size() == 1
+            && Ui.isDark(c)
+            && Prefs.snooze(c) == 30,
+        "restaurar do destino salvo recupera estoque, histórico e preferências sem desconto extra");
+    check(
+        !DriveBackup.prefs(c).getBoolean("needs_restore", true)
+            && DriveBackup.prefs(c).getLong("restored_at", 0) > 0,
+        "restauração libera os próximos backups e registra a conclusão");
+    blocked = false;
+    try {
+      DriveBackup.configure(c, uri, 0, false, new android.os.CancellationSignal());
+    } catch (SecurityException expected) {
+      blocked = true;
+    }
+    check(
+        blocked && uri.equals(DriveBackup.destination(c)),
+        "retorno sem permissão não troca o destino atual");
+    DriveBackup.configure(c, uri, flags, true, new android.os.CancellationSignal());
+    DriveBackup.useCurrentData(c);
+    DriveBackup.save(c, new android.os.CancellationSignal());
+    check(
+        !DriveBackup.prefs(c).getBoolean("needs_restore", true) && DriveBackup.hasLocalCopy(c),
+        "confirmação de substituição usa os dados atuais e renova a cópia local");
+    JSONObject portable = new JSONObject(new String(BackupFiles.snapshot(c), "UTF-8"));
+    check(
+        !portable.toString().contains(uri.toString())
+            && !portable.getJSONObject("settings").has("automatic"),
+        "backup portátil não copia acesso ao Drive nem ativa diário em outro celular");
+    DriveBackup.setAutomatic(c, false);
+    check(
+        jobs.getPendingJob(DriveBackup.JOB_ID) == null,
+        "desativar diário cancela somente o trabalho de backup");
+    db.replenish(med.id, 42);
+    DriveBackup.prefs(c)
+        .edit()
+        .putLong("job_test_after", System.currentTimeMillis())
+        .putLong("job_saved_at", 0)
+        .commit();
+    DriveBackup.setAutomatic(c, true);
+    check(
+        DriveBackup.hasAccess(c, uri),
+        "destino permanece autorizado para teste após encerrar o processo");
+  }
+
+  private void driveVerifyJob() throws Exception {
+    android.net.Uri uri = driveUri();
+    check(
+        DriveBackup.hasAccess(c, uri) && DriveBackup.automatic(c),
+        "acesso e escolha do diário sobrevivem ao reinício do processo");
+    long mark = DriveBackup.prefs(c).getLong("job_test_after", 0);
+    check(
+        DriveBackup.prefs(c).getLong("job_saved_at", 0) >= mark
+            && DriveBackup.prefs(c).getLong("saved_at", 0) >= mark,
+        "serviço executado pelo Android registra o backup em segundo plano");
+    check(
+        driveFile(uri).getJSONArray("meds").getJSONObject(0).getDouble("stock") == 42,
+        "trabalho diário grava alterações feitas após o backup manual");
+    check(
+        db.medications().get(0).stock == 42 && db.history().size() == 1,
+        "backup em segundo plano não altera cadastro ou confirma doses");
+  }
+
+  private void driveFailureChecks() throws Exception {
+    android.net.Uri uri = driveUri();
+    DriveBackup.setAutomatic(c, false);
+    long saved = DriveBackup.prefs(c).getLong("saved_at", 0);
+    c.getContentResolver()
+        .releasePersistableUriPermission(
+            uri, Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+    java.util.concurrent.atomic.AtomicBoolean finished =
+        new java.util.concurrent.atomic.AtomicBoolean();
+    java.util.concurrent.atomic.AtomicBoolean succeeded =
+        new java.util.concurrent.atomic.AtomicBoolean(true);
+    DriveBackup.submit(
+        c,
+        new android.os.CancellationSignal(),
+        signal -> DriveBackup.save(c, signal),
+        (ok, message) -> {
+          succeeded.set(ok);
+          finished.set(true);
+        });
+    await(finished::get);
+    check(
+        !succeeded.get() && !DriveBackup.hasAccess(c, uri),
+        "acesso revogado produz falha sem gravar no destino");
+    check(
+        DriveBackup.prefs(c).getLong("saved_at", 0) == saved,
+        "falha não atualiza a data do último backup concluído");
+    check(
+        !DriveBackup.prefs(c).getString("error", "").contains(uri.toString()),
+        "mensagem de falha não expõe endereço privado do documento");
+    check(DriveBackup.hasLocalCopy(c), "falha mantém a última cópia local conferida");
+    Medication med = db.medications().get(0);
+    db.replenish(med.id, 3);
+    DriveBackup.restore(c, true, new android.os.CancellationSignal());
+    check(
+        db.medication(med.id).stock == 42 && db.history().size() == 1,
+        "cópia local recupera dados mesmo com acesso remoto perdido");
+    DriveBackup.disconnect(c);
+    check(
+        DriveBackup.destination(c) == null
+            && !DriveBackup.automatic(c)
+            && !DriveBackup.localCopy(c).exists(),
+        "desconectar remove autorização, cópia local e diário");
+    check(
+        db.medication(med.id).stock == 42 && db.history().size() == 1,
+        "desconectar não apaga medicamentos nem histórico");
+  }
+
   private void backupChecks() throws Exception {
     clear();
     int encrypted = android.app.backup.BackupAgent.FLAG_CLIENT_SIDE_ENCRYPTION_ENABLED;
@@ -1694,9 +1999,9 @@ public final class DeviceTests extends Instrumentation {
       runOnMainSync(
           () ->
               check(
-                  hasText(activity, "Backup e Google Drive")
-                      && hasText(activity, "Desativar no Dose")
-                      && hasText(activity, "Salvar arquivo de backup"),
+                  hasText(activity, "Backup no Google Drive")
+                      && hasText(activity, "Desativar cópia do Android")
+                      && hasText(activity, "Exportar outra cópia"),
                   "central de backup mostra conta, controle do automático e arquivo manual"));
       java.io.File file = new java.io.File(c.getCacheDir(), "backup-test.json");
       java.util.concurrent.atomic.AtomicBoolean done =

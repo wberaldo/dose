@@ -14,6 +14,7 @@ public final class RestoreReceiver extends BroadcastReceiver {
         Store.get(c).rezone(System.currentTimeMillis());
       // Rebuild the next durable alarm. Never start audio directly from boot.
       AlarmEngine.refresh(c);
+      DriveBackup.ensureScheduled(c);
     }
   }
 }

@@ -1,5 +1,16 @@
 # Alterações
 
+## 1.6.0
+
+- Guarda o destino escolhido no Drive uma única vez, com acesso persistente ao arquivo.
+- Adiciona Fazer backup agora, sem reabrir o seletor após configurar.
+- Oferece backup diário pelo JobScheduler, com conexão, bateria suficiente e reagendamento após reinício.
+- Permite restaurar diretamente do destino salvo.
+- Protege backups existentes contra substituição até restaurar ou confirmar o uso dos dados do celular.
+- Confere o arquivo após gravar, registra a última conclusão e mantém uma cópia local de recuperação.
+- Mostra falhas sem afirmar que os servidores do Drive confirmaram a sincronização.
+- Mantém exportação avulsa e a cópia opcional do Android.
+
 ## 1.5.0
 
 - Adiciona a central Backup e Google Drive em Alertas.

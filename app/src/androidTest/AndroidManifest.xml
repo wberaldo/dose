@@ -1,5 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="br.com.well.dose.test">
     <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="37" />
-    <application android:label="Dose tests" />
+    <application android:label="Dose tests">
+      <provider android:name="br.com.well.dose.DeviceTests$DriveTestProvider" android:authorities="br.com.well.dose.test.backup" android:exported="true" android:grantUriPermissions="true" />
+    </application>
     <instrumentation android:name="br.com.well.dose.DeviceTests" android:targetPackage="br.com.well.dose" android:label="Dose integration tests" />
 </manifest>

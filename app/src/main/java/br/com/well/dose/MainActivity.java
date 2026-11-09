@@ -75,6 +75,7 @@ public final class MainActivity extends Activity {
   protected void onResume() {
     super.onResume();
     AlarmEngine.refresh(this);
+    DriveBackup.ensureScheduled(this);
     if (!registered) {
       if (Build.VERSION.SDK_INT >= 33)
         registerReceiver(
@@ -921,7 +922,7 @@ public final class MainActivity extends Activity {
     option(
         body,
         "Backup e Google Drive",
-        "Backup da conta do celular e arquivos para salvar ou restaurar.",
+        "Um destino salvo, backup agora e cópia diária.",
         () -> startActivity(new Intent(this, BackupActivity.class)));
     option(
         body,
@@ -973,7 +974,7 @@ public final class MainActivity extends Activity {
         body,
         Ui.text(
             this,
-            "Dose 1.5.0 • Rotina e lembretes funcionam sem internet.\n"
+            "Dose 1.6.0 • Rotina e lembretes funcionam sem internet.\n"
                 + "Os dados ficam neste aparelho. Faça backups antes de desinstalar. Cadastre"
                 + " apenas os horários da sua prescrição.",
             12,
