@@ -1,15 +1,54 @@
+import groovy.json.JsonSlurper
+import groovy.json.JsonOutput
+
 plugins { id 'com.android.application' }
+
+def keyData = new JsonSlurper().parse(rootProject.file('signing/local-signing.json'))
+def googleFile = providers.gradleProperty('doseGoogleConfig').map { rootProject.file(it) }
+def generatedGoogle = layout.buildDirectory.dir('generated/googleConfig/res')
+tasks.register('generateGoogleConfig') {
+    inputs.property('configuration', googleFile.map { it.text }.orElse('{"enabled":false}'))
+    outputs.dir(generatedGoogle)
+    doLast {
+        def output = generatedGoogle.get().file('raw/google_drive_config.json').asFile
+        output.parentFile.mkdirs()
+        def value = googleFile.isPresent() ? new JsonSlurper().parse(googleFile.get()) : [enabled:false]
+        output.text = JsonOutput.toJson(value)
+    }
+}
 
 android {
     namespace 'br.com.well.dose'
     compileSdk 37
+    buildToolsVersion '37.0.0'
     defaultConfig {
         applicationId 'br.com.well.dose'
         minSdk 26
         targetSdk 37
-        versionCode 8
-        versionName '1.6.0'
+        versionCode 9
+        versionName '1.7.0'
         testInstrumentationRunner 'br.com.well.dose.DeviceTests'
     }
+    signingConfigs {
+        personal {
+            storeFile rootProject.file('signing/dose-personal.jks')
+            storePassword keyData.password
+            keyAlias keyData.alias
+            keyPassword keyData.password
+        }
+    }
+    buildTypes {
+        release { signingConfig signingConfigs.personal; minifyEnabled false }
+        debug { signingConfig signingConfigs.personal }
+    }
+    testBuildType 'release'
+    sourceSets.main.res.srcDir generatedGoogle
     compileOptions { sourceCompatibility JavaVersion.VERSION_1_8; targetCompatibility JavaVersion.VERSION_1_8 }
+    testOptions.unitTests.all { exclude '**/ScheduleTests.class' }
+}
+tasks.named('preBuild').configure { dependsOn 'generateGoogleConfig' }
+dependencies {
+    implementation 'com.google.android.gms:play-services-auth:22.0.0'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20250517'
 }

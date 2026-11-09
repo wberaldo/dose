@@ -27,8 +27,8 @@ try:
     ad('shell','wm','size','900x2000');ad('shell','wm','density','360')
     ad('shell','settings','put','system','screen_off_timeout','600000')
     ad('shell','cmd','alarm','set-timezone','America/Sao_Paulo',check=False)
-    print(ad('install','--no-incremental','-r',root/'build/Dose-1.6.0.apk'),flush=True)
-    print(ad('install','--no-incremental','-r',root/'build/device-tests/dose-tests.apk'),flush=True)
+    print(ad('install','--no-incremental','-r',root/'build/Dose-1.7.0.apk'),flush=True)
+    print(ad('install','--no-incremental','-r','-t',root/'build/device-tests/dose-tests.apk'),flush=True)
     ad('shell','pm','grant','br.com.well.dose','android.permission.POST_NOTIFICATIONS')
     ad('shell','appops','set','br.com.well.dose','SCHEDULE_EXACT_ALARM','allow')
     ad('shell','appops','set','br.com.well.dose','USE_FULL_SCREEN_INTENT','allow',check=False)
@@ -43,6 +43,15 @@ try:
     (out/'backups.txt').write_text(backups);print(backups,flush=True)
     if 'INSTRUMENTATION_RESULT: result=PASS' not in backups:raise RuntimeError('Account backup, manual file or restore checks failed.')
     summary['backups']='PASS'
+    google=ad('shell','am','instrument','-r','-w','-e','mode','google',runner,timeout=240)
+    (out/'google-pending.txt').write_text(google);print(google,flush=True)
+    if 'INSTRUMENTATION_RESULT: result=PASS' not in google:raise RuntimeError('Unconfigured Google integration or data-preservation checks failed.')
+    summary['google_pending']='PASS'
+    ad('shell','am','instrument','-r','-w','-e','mode','drive_seed',runner,timeout=90)
+    document=ad('shell','am','instrument','-r','-w','-e','mode','drive','-e','uri','content://br.com.well.dose.test.backup/backup.json',runner,timeout=240)
+    (out/'file-backup.txt').write_text(document);print(document,flush=True)
+    if 'INSTRUMENTATION_RESULT: result=PASS' not in document:raise RuntimeError('Persistent file backup or existing-copy protection failed.')
+    summary['file_backup']='PASS'
     today=ad('shell','am','instrument','-r','-w','-e','mode','today',runner,timeout=240)
     (out/'today.txt').write_text(today);print(today,flush=True)
     if 'INSTRUMENTATION_RESULT: result=PASS' not in today:raise RuntimeError('In-app dose confirmation checks failed.')
@@ -64,7 +73,7 @@ try:
     if 'INSTRUMENTATION_RESULT: result=PASS' not in alarms:raise RuntimeError('Single notification, alarm audio or volume recovery checks failed.')
     summary['alarms']='PASS'
     regression=ad('shell','am','instrument','-r','-w','-e','mode','regression',runner,timeout=240)
-    (out/'regression-1.6.0.txt').write_text(regression);print(regression,flush=True)
+    (out/'regression-1.7.0.txt').write_text(regression);print(regression,flush=True)
     if 'INSTRUMENTATION_RESULT: result=PASS' not in regression:raise RuntimeError('Theme, calendar or test-alarm regression failed.')
     summary['regression']='PASS'
     seed=ad('shell','am','instrument','-r','-w','-e','mode','seed',runner,timeout=60);(out/'background-seed.txt').write_text(seed)

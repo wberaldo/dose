@@ -1,3 +1,11 @@
+# 1.7.0 — 08/11/2026
+
+- Implementa autorização oficial com conta Google, identificação da conta, upload REST direto para o Drive e restauração com verificação de tamanho e MD5.
+- Acrescenta diário via JobScheduler, seleção/troca de conta, revogação, proteção de cópia existente e pausa quando há necessidade de reconectar.
+- Mantém o seletor de arquivos em uma tela própria, sem apresentá-lo como login Google.
+- A integração Google permanece desabilitada no APK entregue até o cadastro OAuth e atendimento das condições externas do Google. Nenhuma conta real foi conectada ou validada nesta entrega.
+- Migra a compilação para Gradle com o SDK oficial Google Identity Services 22.0.0. Preserva o pacote, a assinatura e o banco versão 4.
+
 # Alterações
 
 ## 1.6.0

@@ -47,6 +47,7 @@ public final class DeviceTests extends Instrumentation {
       else if ("drive".equals(mode)) driveChecks();
       else if ("drive_job".equals(mode)) driveVerifyJob();
       else if ("drive_failures".equals(mode)) driveFailureChecks();
+      else if ("google".equals(mode)) googleChecks();
       else if ("backups".equals(mode)) backupChecks();
       else if ("cloud_seed".equals(mode)) cloudSeed();
       else if ("cloud_verify".equals(mode)) cloudVerify();
@@ -157,6 +158,113 @@ public final class DeviceTests extends Instrumentation {
       throw new IllegalStateException(e);
     }
     Prefs.get(c).edit().clear().putBoolean("fullscreen", false).commit();
+  }
+
+  private void googleChecks() throws Exception {
+    clear();
+    GoogleDriveBackup.prefs(c).edit().clear().commit();
+    Medication med = medication("Medicamento fictício preservado");
+    // This screen check must not race a real scheduled dose at the fixture's 08:00/20:00.
+    med.enabled = false;
+    db.save(med, System.currentTimeMillis());
+    JSONObject original = db.exportJson();
+    original.remove("exported_at");
+    String before = original.toString();
+    check(!GoogleDriveConfig.enabled(c), "APK sem cadastro OAuth informa configuração pendente");
+    check(
+        GoogleDriveConfig.fingerprint(c)
+            .equalsIgnoreCase("835326a0b31ae615250a77954cca9245c55f6265"),
+        "configuração usa a assinatura real e compatível com as atualizações");
+    check(
+        !GoogleDriveBackup.connected(c),
+        "nenhuma conta ou identidade fictícia é apresentada como conectada");
+    check(
+        GoogleAuthorization.needsConsent(
+            new com.google.android.gms.common.api.ApiException(
+                new com.google.android.gms.common.api.Status(4))),
+        "perda do login Google é identificada para pausar o diário e pedir reconexão");
+    boolean blocked = false;
+    try {
+      GoogleDriveBackup.setAutomatic(c, true);
+    } catch (IllegalStateException expected) {
+      blocked = true;
+    }
+    android.app.job.JobScheduler jobs =
+        (android.app.job.JobScheduler) c.getSystemService(Context.JOB_SCHEDULER_SERVICE);
+    check(
+        blocked && jobs.getPendingJob(GoogleDriveBackup.JOB_ID) == null,
+        "diário não agenda sem configuração e autorização reais");
+    blocked = false;
+    try {
+      GoogleDriveBackup.save(c, new CancellationSignal());
+    } catch (java.io.IOException expected) {
+      blocked = true;
+    }
+    check(
+        blocked && GoogleDriveBackup.prefs(c).getLong("saved_at", 0) == 0,
+        "tentativa sem configuração não informa um backup concluído");
+    android.content.pm.PackageInfo info =
+        c.getPackageManager()
+            .getPackageInfo(
+                c.getPackageName(),
+                android.content.pm.PackageManager.GET_PERMISSIONS
+                    | android.content.pm.PackageManager.GET_ACTIVITIES
+                    | android.content.pm.PackageManager.GET_SERVICES);
+    check(
+        Arrays.asList(info.requestedPermissions).contains("android.permission.INTERNET"),
+        "APK declara internet para a API oficial");
+    boolean googleActivity = false;
+    for (android.content.pm.ActivityInfo a : info.activities)
+      if (a.name.equals("com.google.android.gms.common.api.GoogleApiActivity"))
+        googleActivity = true;
+    check(googleActivity, "manifesto incorpora a atividade oficial do Google Identity Services");
+    java.net.HttpURLConnection http =
+        (java.net.HttpURLConnection)
+            new java.net.URL("https://www.googleapis.com/upload/drive/v3/files/test")
+                .openConnection();
+    http.setRequestMethod("PATCH");
+    check(
+        "PATCH".equals(http.getRequestMethod()),
+        "transporte Android aceita PATCH de atualização sem iniciar conexão");
+    http.disconnect();
+    Activity activity =
+        startActivitySync(
+            new Intent(c, BackupActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+    try {
+      waitForIdleSync();
+      runOnMainSync(
+          () ->
+              check(
+                  hasText(activity, "Configuração Google pendente")
+                      && hasText(activity, "Ver configuração necessária")
+                      && !hasText(activity, "Conectado"),
+                  "atividade real explica pendência sem simular login"));
+      runOnMainSync(
+          () -> {
+            final TextView[] target = new TextView[1];
+            for (View v : views(activity.getWindow().getDecorView()))
+              if (v instanceof TextView
+                  && ((TextView) v).getText().toString().equals("Ver configuração necessária"))
+                target[0] = (TextView) v;
+            if (target[0] == null) throw new AssertionError("Botão de configuração ausente");
+            target[0].performClick();
+          });
+      waitForIdleSync();
+      sendKeyDownUpSync(KeyEvent.KEYCODE_BACK);
+      waitForIdleSync();
+    } finally {
+      runOnMainSync(activity::finish);
+    }
+    JSONObject current = db.exportJson();
+    current.remove("exported_at");
+    check(
+        before.equals(current.toString()),
+        "consulta de configuração e tentativas bloqueadas mantêm todos os dados clínicos");
+    JSONObject snapshot = new JSONObject(new String(BackupFiles.snapshot(c), "UTF-8"));
+    check(
+        !snapshot.toString().contains("account_id")
+            && !snapshot.toString().contains("access_token"),
+        "arquivo portátil não contém conta ou credenciais Google");
   }
 
   private Medication medication(String name) {
@@ -1665,7 +1773,7 @@ public final class DeviceTests extends Instrumentation {
     db.replenish(med.id, 17);
     Activity activity =
         startActivitySync(
-            new Intent(c, BackupActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            new Intent(c, FileBackupActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
     try {
       waitForIdleSync();
       Instrumentation.ActivityMonitor picker =
@@ -1993,13 +2101,13 @@ public final class DeviceTests extends Instrumentation {
         "arquivos usam o seletor Android compatível com Drive e outros locais");
     Activity activity =
         startActivitySync(
-            new Intent(c, BackupActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            new Intent(c, FileBackupActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
     try {
       waitForIdleSync();
       runOnMainSync(
           () ->
               check(
-                  hasText(activity, "Backup no Google Drive")
+                  hasText(activity, "Backup em arquivo")
                       && hasText(activity, "Desativar cópia do Android")
                       && hasText(activity, "Exportar outra cópia"),
                   "central de backup mostra conta, controle do automático e arquivo manual"));

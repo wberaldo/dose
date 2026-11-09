@@ -4,11 +4,11 @@ Aplicativo nativo em português para organizar medicamentos e lembrar os horári
 
 ## Atualizar de versões anteriores
 
-Abra o APK 1.6.0 e escolha **Atualizar**. O pacote e a chave de assinatura são os mesmos; medicamentos, histórico, estoque e preferências permanecem no aparelho. Não desinstale a versão anterior para atualizar.
+Abra o APK 1.7.0 e escolha **Atualizar**. O pacote e a chave de assinatura são os mesmos; medicamentos, histórico, estoque e preferências permanecem no aparelho. Não desinstale a versão anterior para atualizar.
 
 ## Instalar e começar
 
-1. No celular, abra `Dose-1.6.0.apk` e siga a instalação. Se o Android solicitar, autorize a instalação de apps pela fonte usada para abrir o arquivo.
+1. No celular, abra `Dose-1.7.0.apk` e siga a instalação. Se o Android solicitar, autorize a instalação de apps pela fonte usada para abrir o arquivo.
 2. Abra o Dose e toque em **Cadastrar medicamento** ou **Remédios → Novo medicamento**.
 3. Informe nome, concentração se desejar, quantidade por dose, unidade, horários, dias da semana e período. Use os horários da sua prescrição.
 4. Na aba **Alertas**, autorize **Notificações**, **Alarmes e lembretes**, **Tela cheia na tela bloqueada** e **Tela cheia com o celular em uso**. Esta última abre a autorização do Android para aparecer sobre outros apps. Se usar Não perturbe, permita alarmes no modo ativo. Confira também a configuração de bateria.
@@ -20,41 +20,15 @@ Os alarmes começam nos próximos horários após cadastrar ou importar. Um hor�
 
 ## Backup e Google Drive
 
-Abra **Alertas → Backup e Google Drive**.
+A versão 1.7 inclui o código da conexão oficial com conta Google, upload direto, restauração e backup diário. **O APK desta entrega permanece com a configuração Google pendente**, pois o projeto OAuth do responsável pelo Dose ainda precisa ser cadastrado e habilitado. Não é possível selecionar uma conta real nesse APK enquanto essa configuração não for concluída. Não foi validado envio a uma conta real.
 
-### Configurar uma única vez
+O guia **GOOGLE-DRIVE-CONFIGURACAO.md**, incluído no projeto, contém pacote, assinatura, etapas externas e comando de compilação. O código utiliza o SDK oficial do Google e a permissão `drive.file`, limitada aos arquivos criados/autorizados para o Dose. Não utiliza a conta Google conectada ao ChatGPT.
 
-1. Toque em **Configurar Google Drive → Escolher no Drive**.
-2. No seletor do Android, escolha **Google Drive**, confira a conta e a pasta e salve `Dose-backup-automatico.json`. Se o Drive não aparecer, abra o aplicativo Drive e conecte sua conta antes.
-3. O Dose grava o primeiro backup e guarda acesso somente a esse arquivo. A conta e a pasta selecionadas no Drive passam a ser o destino das próximas gravações.
+Após a ativação, **Alertas → Backup e Google Drive** mostra a conta conectada, **Fazer backup agora**, **Restaurar do Google Drive**, troca e desconexão de conta e um controle opcional do diário. A gravação ocorre pela API, sem abrir o seletor de Downloads. A pasta é `Dose` e o arquivo é `Dose-backup.json`. A conclusão exige confirmação de tamanho e MD5 pelo servidor. Uma cópia existente exige restaurar ou confirmar a substituição. O diário utiliza rede e bateria suficiente, com horário gerenciado pelo Android.
 
-Depois disso, **Fazer backup agora** atualiza o mesmo arquivo dentro do Dose, sem escolher conta, pasta ou nome novamente. A tela mostra o destino e a última gravação concluída. O Drive gerencia a sincronização do arquivo com a nuvem; a confirmação de gravação no arquivo não é confirmação de recebimento pelos servidores do Google.
+**Abrir opções de arquivo** mantém a exportação e restauração por arquivos já disponíveis. Esse fluxo usa o seletor Android e os locais que o aparelho disponibilizar; não solicita uma conta Google. Também preserva o destino salvo da versão 1.6, sua cópia local de recuperação e a cópia opcional da conta Android. A confirmação de gravação por um provedor de arquivos não equivale à confirmação de recebimento pelo servidor Google.
 
-**Trocar destino** abre uma nova escolha. **Desconectar destino** interrompe o diário, remove o acesso salvo no Dose e a cópia local de recuperação, mantendo o arquivo no Drive e todos os medicamentos do app.
-
-Não há login Google próprio do Dose nem acesso geral à conta: a autorização do arquivo é feita pelo seletor do Android e pelo aplicativo Drive. O recurso também funciona com um arquivo local ou outro provedor escolhido, identificado na tela como destino.
-
-### Backup automático diário
-
-Após configurar o destino, toque em **Ativar backup diário**. O Dose agenda uma gravação a cada 24 horas, com conexão e bateria suficiente. O Android pode adiar a execução devido à bateria, rede ou restrições do aparelho. O trabalho é persistente e o app o confere ao abrir, após reiniciar e após atualizar. O botão Fazer backup agora continua disponível.
-
-O automático começa desativado. Não depende do horário do backup geral da conta Android. A atualização do arquivo e os erros aparecem na mesma tela. Se o arquivo for apagado, movido ou perder acesso, confira sua conta no Drive e escolha o destino novamente.
-
-### Restaurar do Drive
-
-Se o destino já estiver configurado, toque em **Restaurar este backup** e confirme a substituição dos dados atuais. Para recuperar uma cópia em outro celular ou após reinstalar, use **Já tenho um backup** e escolha o arquivo no Drive. O Dose vincula o arquivo sem gravar sobre ele, mantém o diário desativado e oferece a restauração.
-
-Um arquivo existente só pode ser atualizado depois de restaurar ou confirmar **Substituir pelos dados deste celular**. Essa confirmação evita apagar uma cópia anterior ao configurar o Dose vazio em outro aparelho.
-
-Uma cópia local da última gravação conferida fica protegida no armazenamento interno do app, associada ao destino atual. Se houver erro, **Recuperar última cópia local** fica disponível. Ela não substitui a cópia fora do celular e desaparece ao desinstalar ou desconectar o destino.
-
-### Dados incluídos e outras formas
-
-A cópia inclui medicamentos, histórico, estoque, relatórios importados, aparência, preferências dos lembretes e cancelamentos por dia. O formato permanece na versão 4 e aceita arquivos 1, 2, 3 e 4 anteriores. O limite é 20 MB. Restaurar preserva o estoque registrado, não desconta doses novamente e não dispara avisos retroativos. As permissões de alertas do novo aparelho precisam ser conferidas.
-
-A autorização do arquivo e a ativação do diário não entram no backup portátil: no aparelho de destino, escolha o arquivo novamente. Estados temporários de áudio e testes também ficam de fora.
-
-**Exportar outra cópia** e **Restaurar de outro arquivo** continuam disponíveis. A antiga integração com o backup da conta do Android fica em **Cópia do Android • opcional**, independente do destino salvo. Ela continua sujeita à conta, criptografia e horários do sistema, com restauração ao reinstalar ou configurar outro aparelho. O controle do Android começa desativado e exige Android 9 ou superior; o destino salvo e o diário funcionam desde o Android 8.
+O backup inclui medicamentos, histórico, estoque, relatórios, aparência, preferências e cancelamentos por dia. Continua na versão 4 e aceita versões 1 a 4, com limite de 20 MB. A restauração não desconta estoque novamente nem dispara avisos retroativos. Autorizações Google, tokens, URIs persistentes e ativação do diário não entram no arquivo portátil.
 
 ## Registrar uma tomada na aba Hoje
 
@@ -147,24 +121,24 @@ O teste em tela bloqueada no próprio aparelho é necessário para conferir as r
 
 Agenda com visão por dia, progresso diário, cadastro com até 12 horários fixos, seleção de dias, início e término, observações, cores, pausa e arquivamento. Histórico com registro do horário real de tomada. Estoque opcional com desconto após confirmação e aviso visual quando há 5 unidades ou menos.
 
-A rotina e os lembretes funcionam localmente. O manifesto não solicita acesso à internet. Não há cadastro nem anúncios. Os backups opcionais são enviados pelo Android ou pelo aplicativo de arquivos escolhido, que pode precisar de conexão. A desinstalação apaga os dados locais: use **Alertas → Salvar backup** para guardar medicamentos e histórico em JSON. **Restaurar backup** substitui os dados atuais após confirmação e validação do arquivo.
+A rotina e os lembretes funcionam localmente. O manifesto solicita internet para a integração Google opcional; sem configuração e autorização Google, ela não envia os dados. Não há anúncios. Backups por arquivos ou pela conta Android continuam dependendo das respectivas opções ativadas pelo usuário. A desinstalação apaga os dados locais: use **Alertas → Backup e Google Drive → Abrir opções de arquivo → Exportar outra cópia** para guardar medicamentos e histórico em JSON. **Restaurar de outro arquivo** substitui os dados atuais após confirmação e validação.
 
 Compatibilidade mínima: Android 8.0 (API 26). Compilado com SDK Android 17 (API 37). APK universal, sem bibliotecas nativas específicas de processador. A validação executada está documentada em `VALIDACAO.md`.
 
 ## Código e compilação
 
-O código usa Java e APIs nativas do Android, SQLite e recursos vetoriais. Não há dependências de execução de terceiros.
+O código usa Java, APIs nativas do Android, SQLite, recursos vetoriais e Google Identity Services 22.0.0. O Gradle incorpora as dependências, recursos e manifestos do SDK Google.
 
-Abra a pasta no Android Studio ou use o script reproduzível. O caminho usado pelo script não depende de Gradle:
+Abra a pasta no Android Studio ou use o script. A compilação requer Gradle 8.13, obtido pelo wrapper incluído, e Android Gradle Plugin 8.13.2:
 
 ```bash
 sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0' 'platform-tools'
 python3 tools/build.py --sdk /caminho/absoluto/android-sdk --test
 ```
 
-Requer Java 17 com o compilador (`java com.sun.tools.javac.Main`) e `keytool`, Python 3 e o SDK oficial. O APK assinado sai em `build/Dose-1.6.0.apk`.
+Requer JDK 17 completo, Python 3 e o SDK oficial. O wrapper baixa o Gradle na primeira execução; o SDK Google e as dependências são obtidos dos repositórios oficiais. O APK assinado sai em `build/Dose-1.7.0.apk`.
 
-`signing/` contém a chave pessoal usada nesta versão e sua configuração local. Guarde essa pasta para assinar futuras atualizações compatíveis com o APK instalado. A chave e sua senha pertencem à entrega pessoal; a pasta `signing/` não é versionada. Guarde a chave para gerar atualizações da instalação existente. A compilação pelo Android Studio usa a configuração de assinatura escolhida no próprio Studio.
+`signing/` contém a chave pessoal usada nesta versão e sua configuração local. Guarde essa pasta para assinar futuras atualizações compatíveis com o APK instalado. A chave e sua senha pertencem à entrega pessoal; a pasta `signing/` não é versionada. Guarde a chave para gerar atualizações da instalação existente. A compilação usa a chave pessoal quando a pasta signing/ está presente. Sem a chave original, um novo APK não pode atualizar a instalação existente.
 
 ### Testes em um emulador isolado
 
@@ -183,7 +157,7 @@ Os testes do conversor usam exemplos fictícios e rodam com `python3 -m unittest
 
 A entrega contém `Dose-historico-git.bundle`, com os commits locais do código. Para recuperar o repositório, execute `git clone Dose-historico-git.bundle dose-codigo`. Dados pessoais, arquivos de importação, PDF e chaves de assinatura não fazem parte desse histórico. A pasta privada `signing/` está apenas no ZIP desta entrega.
 
-O ZIP também contém `Dose-1.6.0.patch`, com as alterações públicas desta versão. Em um repositório que já contenha a versão 1.5.0, use `git am /caminho/Dose-1.6.0.patch` para aplicar o commit. O patch não inclui a chave de assinatura nem dados pessoais. Para começar com todo o histórico, prefira o bundle.
+O ZIP também contém `Dose-1.7.0.patch`, com as alterações públicas desta versão. Em um repositório que já contenha a versão 1.6.0, use `git am /caminho/Dose-1.7.0.patch` para aplicar o commit. O patch não inclui a chave de assinatura nem dados pessoais. Para começar com todo o histórico, prefira o bundle.
 
 Nenhum repositório remoto foi configurado e nenhum push foi realizado. Depois de definir o repositório GitHub de destino, configure o remoto nesse clone e envie os commits. Mantenha o arquivo pessoal de importação separado do código.
 
@@ -204,4 +178,4 @@ Nenhum repositório remoto foi configurado e nenhum push foi realizado. Depois d
 - Não perturbe e políticas: https://developer.android.com/reference/android/app/NotificationManager
 - Restrições para tela cheia: https://developer.android.com/about/versions/14/behavior-changes-14
 
-Versão 1.6.0. Entrega pessoal instalável; não publicada na Play Store.
+Versão 1.7.0. Entrega pessoal instalável; não publicada na Play Store.

@@ -15,6 +15,7 @@ public final class RestoreReceiver extends BroadcastReceiver {
       // Rebuild the next durable alarm. Never start audio directly from boot.
       AlarmEngine.refresh(c);
       DriveBackup.ensureScheduled(c);
+      GoogleDriveBackup.schedule(c);
     }
   }
 }
