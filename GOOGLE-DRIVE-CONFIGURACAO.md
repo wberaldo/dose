@@ -35,6 +35,12 @@ Se aparecer erro de configuração OAuth (código 10), confira esses campos e o 
 
 Os [termos do Drive](https://developers.google.com/workspace/drive/api/terms), seção Customer implementation, condicionam backup de conteúdo de um app ao consentimento prévio expresso do Google por escrito. Essa condição é responsabilidade do titular do projeto e é separada do cadastro OAuth e do consentimento do usuário. Esta entrega não afirma que essa aprovação foi obtida. A configuração não contém uma opção local declarando aprovação externa: um booleano no APK não comprovaria autorização do Google.
 
+## Páginas públicas e saída do modo de teste
+
+A apresentação do Dose, a política de privacidade e os termos estão em `docs/`, preparados para GitHub Pages. Veja [PUBLICACAO-GITHUB.md](PUBLICACAO-GITHUB.md) para publicar essa pasta e preencher os links reais no Branding do mesmo projeto Google Cloud.
+
+No modo Testing, a conta precisa constar em Test users e a autorização para os escopos do app expira após sete dias. Para retirar esse prazo específico, complete o cadastro solicitado pelo Google e use Audience → Publish app. Uso pessoal tem exceção de verificação OAuth; essa exceção não declara aprovação do cadastro nem substitui as pendências mostradas pelo painel. A mudança de status não garante uma autorização que nunca precise ser renovada.
+
 ## Compilar
 
 ```bash

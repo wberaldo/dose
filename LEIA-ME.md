@@ -129,6 +129,8 @@ Compatibilidade mínima: Android 8.0 (API 26). Compilado com SDK Android 17 (API
 
 ## Código e compilação
 
+As páginas públicas de apresentação, privacidade e termos ficam em `docs/`, com instruções de hospedagem no GitHub Pages em [PUBLICACAO-GITHUB.md](PUBLICACAO-GITHUB.md). Essa publicação é separada da compilação e da assinatura do APK.
+
 O código usa Java, APIs nativas do Android, SQLite, recursos vetoriais e Google Identity Services 22.0.0. O Gradle incorpora as dependências, recursos e manifestos do SDK Google.
 
 Abra a pasta no Android Studio ou use o script. A compilação requer Gradle 8.13, obtido pelo wrapper incluído, e Android Gradle Plugin 8.13.2:

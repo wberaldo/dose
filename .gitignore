@@ -17,3 +17,13 @@ verificacao/
 /Dose-importacao-*.json
 /*MyTherapy*.json
 *.dose-import.json
+*.zip
+*.bundle
+*.patch
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+.env
+.env.*
+.openai/
