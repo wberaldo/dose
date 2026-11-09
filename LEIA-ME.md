@@ -4,11 +4,11 @@ Aplicativo nativo em português para organizar medicamentos e lembrar os horári
 
 ## Atualizar de versões anteriores
 
-Abra o APK 1.7.1 e escolha **Atualizar**. O pacote e a chave de assinatura são os mesmos; medicamentos, histórico, estoque e preferências permanecem no aparelho. Não desinstale a versão anterior para atualizar.
+Abra o APK 1.7.2 e escolha **Atualizar**. Esta versão troca o ícone por uma cápsula branca e verde centralizada, sem estrela. O pacote e a chave de assinatura são os mesmos; medicamentos, histórico, estoque e preferências permanecem no aparelho. Não desinstale a versão anterior para atualizar.
 
 ## Instalar e começar
 
-1. No celular, abra `Dose-1.7.1.apk` e siga a instalação. Se o Android solicitar, autorize a instalação de apps pela fonte usada para abrir o arquivo.
+1. No celular, abra `Dose-1.7.2.apk` e siga a instalação. Se o Android solicitar, autorize a instalação de apps pela fonte usada para abrir o arquivo.
 2. Abra o Dose e toque em **Cadastrar medicamento** ou **Remédios → Novo medicamento**.
 3. Informe nome, concentração se desejar, quantidade por dose, unidade, horários, dias da semana e período. Use os horários da sua prescrição.
 4. Na aba **Alertas**, autorize **Notificações**, **Alarmes e lembretes**, **Tela cheia na tela bloqueada** e **Tela cheia com o celular em uso**. Esta última abre a autorização do Android para aparecer sobre outros apps. Se usar Não perturbe, permita alarmes no modo ativo. Confira também a configuração de bateria.
@@ -140,7 +140,7 @@ sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0' 'platform-tools'
 python3 tools/build.py --sdk /caminho/absoluto/android-sdk --test
 ```
 
-Requer JDK 17 completo, Python 3 e o SDK oficial. O wrapper baixa o Gradle na primeira execução; o SDK Google e as dependências são obtidos dos repositórios oficiais. O APK assinado sai em `build/Dose-1.7.1.apk`.
+Requer JDK 17 completo, Python 3 e o SDK oficial. O wrapper baixa o Gradle na primeira execução; o SDK Google e as dependências são obtidos dos repositórios oficiais. O APK assinado sai em `build/Dose-1.7.2.apk`.
 
 `signing/` contém a chave pessoal usada nesta versão e sua configuração local. Guarde essa pasta para assinar futuras atualizações compatíveis com o APK instalado. A chave e sua senha pertencem à entrega pessoal; a pasta `signing/` não é versionada. Guarde a chave para gerar atualizações da instalação existente. A compilação usa a chave pessoal quando a pasta signing/ está presente. Sem a chave original, um novo APK não pode atualizar a instalação existente.
 
@@ -184,4 +184,4 @@ O projeto está publicado em [wberaldo/dose](https://github.com/wberaldo/dose), 
 - Não perturbe e políticas: https://developer.android.com/reference/android/app/NotificationManager
 - Restrições para tela cheia: https://developer.android.com/about/versions/14/behavior-changes-14
 
-Versão 1.7.1. Entrega pessoal instalável; não publicada na Play Store.
+Versão 1.7.2. Entrega pessoal instalável; não publicada na Play Store.

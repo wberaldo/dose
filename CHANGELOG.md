@@ -1,3 +1,10 @@
+# 1.7.2 — 09/11/2026
+
+- Remove a estrela do ícone do aplicativo e centraliza uma cápsula branca e verde no fundo verde do Dose.
+- Atualiza a identificação da versão e os caminhos de compilação para gerar o APK 1.7.2.
+- Mantém o pacote, a assinatura original e o banco versão 4, sem mudanças nas regras de medicamentos, lembretes ou backup.
+- A validação desta alteração visual está em `VALIDACAO-1.7.2.md`; os testes e limites funcionais da 1.7.1 permanecem em `VALIDACAO.md`.
+
 # 1.7.1 — 08/11/2026
 
 - Configura o cliente OAuth Android informado para oferecer a escolha da conta Google.
