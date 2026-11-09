@@ -17,7 +17,7 @@ public final class Store extends SQLiteOpenHelper {
   }
 
   private Store(Context c) {
-    super(c, "dose.db", null, 3);
+    super(c, "dose.db", null, 4);
   }
 
   @Override
@@ -48,6 +48,7 @@ public final class Store extends SQLiteOpenHelper {
     db.execSQL("CREATE INDEX dose_schedule ON doses(scheduled)");
     db.execSQL("CREATE INDEX dose_med_schedule ON doses(med_id,scheduled)");
     createImportTables(db);
+    createReminderMutes(db);
   }
 
   @Override
@@ -65,6 +66,13 @@ public final class Store extends SQLiteOpenHelper {
         db.execSQL("UPDATE " + table + " SET secondary_color=color");
       }
     }
+    if (old < 4) createReminderMutes(db);
+  }
+
+  private void createReminderMutes(SQLiteDatabase db) {
+    db.execSQL(
+        "CREATE TABLE reminder_mutes(med_id INTEGER NOT NULL REFERENCES meds(id),"
+            + "day TEXT NOT NULL,PRIMARY KEY(med_id,day))");
   }
 
   private void createImportTables(SQLiteDatabase db) {
@@ -114,6 +122,7 @@ public final class Store extends SQLiteOpenHelper {
     d.actual = l(c, "actual");
     d.status = s(c, "status");
     d.snoozed = l(c, "snoozed") == 1;
+    d.reminderCancelled = l(c, "reminder_cancelled") == 1;
     d.name = s(c, "name");
     d.detail = s(c, "detail");
     d.notes = s(c, "notes");
@@ -156,10 +165,8 @@ public final class Store extends SQLiteOpenHelper {
   }
 
   public Dose dose(long id) {
-    try (Cursor c =
-        getReadableDatabase().rawQuery("SELECT * FROM doses WHERE id=?", new String[] {"" + id})) {
-      return c.moveToFirst() ? dose(c) : null;
-    }
+    List<Dose> rows = doses("id=?", new String[] {"" + id}, null);
+    return rows.isEmpty() ? null : rows.get(0);
   }
 
   private ContentValues values(Medication m) {
@@ -255,7 +262,12 @@ public final class Store extends SQLiteOpenHelper {
 
   public List<Dose> doses(String where, String[] args, String order) {
     List<Dose> out = new ArrayList<>();
-    try (Cursor c = getReadableDatabase().query("doses", null, where, args, null, null, order)) {
+    String sql =
+        "SELECT doses.*,EXISTS(SELECT 1 FROM reminder_mutes m WHERE m.med_id=doses.med_id"
+            + " AND m.day=substr(doses.local_key,1,10)) AS reminder_cancelled FROM doses"
+            + (where == null ? "" : " WHERE " + where)
+            + (order == null ? "" : " ORDER BY " + order);
+    try (Cursor c = getReadableDatabase().rawQuery(sql, args)) {
       while (c.moveToNext()) out.add(dose(c));
     }
     return out;
@@ -313,6 +325,10 @@ public final class Store extends SQLiteOpenHelper {
       db.execSQL(
           "UPDATE doses SET status='missed',next_alert=0 WHERE status='pending' AND expires<=?",
           new Object[] {now});
+      db.execSQL(
+          "UPDATE doses SET next_alert=0,snoozed=0 WHERE status='pending' AND EXISTS"
+              + " (SELECT 1 FROM reminder_mutes m WHERE m.med_id=doses.med_id"
+              + " AND m.day=substr(doses.local_key,1,10))");
       db.setTransactionSuccessful();
     } finally {
       db.endTransaction();
@@ -334,7 +350,7 @@ public final class Store extends SQLiteOpenHelper {
         ContentValues v = new ContentValues();
         v.put("scheduled", newTime);
         v.put("expires", newTime + ScheduleRules.WINDOW);
-        v.put("next_alert", newTime);
+        v.put("next_alert", d.reminderCancelled ? 0 : newTime);
         db.update("doses", v, "id=?", new String[] {"" + d.id});
       }
       // Recalculate the expiry against the following dose after timezone changes.
@@ -367,6 +383,7 @@ public final class Store extends SQLiteOpenHelper {
               "status='pending' AND next_alert>0 AND next_alert<=? AND expires>?",
               new String[] {"" + now, "" + now},
               "next_alert,id")) {
+        if (d.reminderCancelled) continue;
         d.alerts++;
         d.lastAlert = now;
         d.snoozed = false;
@@ -445,7 +462,7 @@ public final class Store extends SQLiteOpenHelper {
 
   public boolean snooze(long id, int minutes, long now) {
     Dose d = dose(id);
-    if (d == null || !d.actionable()) return false;
+    if (d == null || !d.actionable() || d.reminderCancelled) return false;
     long next = ScheduleRules.snoozeAt(now, d.expires, minutes);
     ContentValues v = new ContentValues();
     v.put("next_alert", next);
@@ -454,6 +471,29 @@ public final class Store extends SQLiteOpenHelper {
     return getWritableDatabase()
             .update("doses", v, "id=? AND status='pending'", new String[] {"" + id})
         == 1;
+  }
+
+  /** Cancel one medicine's calendar day, including occurrences rebuilt by later edits. */
+  public void cancelReminders(long medId, LocalDate day) {
+    SQLiteDatabase db = getWritableDatabase();
+    db.beginTransaction();
+    try {
+      ContentValues mute = new ContentValues();
+      mute.put("med_id", medId);
+      mute.put("day", day.toString());
+      db.insertWithOnConflict("reminder_mutes", null, mute, SQLiteDatabase.CONFLICT_IGNORE);
+      ContentValues values = new ContentValues();
+      values.put("next_alert", 0);
+      values.put("snoozed", 0);
+      db.update(
+          "doses",
+          values,
+          "med_id=? AND substr(local_key,1,10)=? AND status='pending'",
+          new String[] {"" + medId, day.toString()});
+      db.setTransactionSuccessful();
+    } finally {
+      db.endTransaction();
+    }
   }
 
   public void replenish(long id, double quantity) {
@@ -467,13 +507,14 @@ public final class Store extends SQLiteOpenHelper {
   public JSONObject exportJson() throws JSONException {
     JSONObject root = new JSONObject();
     root.put("format", "dose-backup");
-    root.put("version", 3);
+    root.put("version", 4);
     root.put("exported_at", System.currentTimeMillis());
     root.put("zone", ZoneId.systemDefault().getId());
     root.put("meds", tableJson("meds"));
     root.put("doses", tableJson("doses"));
     root.put("import_sources", tableJson("import_sources"));
     root.put("import_links", tableJson("import_links"));
+    root.put("reminder_mutes", tableJson("reminder_mutes"));
     return root;
   }
 
@@ -502,7 +543,7 @@ public final class Store extends SQLiteOpenHelper {
 
   public void importJson(JSONObject root) throws JSONException {
     if (!"dose-backup".equals(root.optString("format"))
-        || !Arrays.asList(1, 2, 3).contains(root.optInt("version")))
+        || !Arrays.asList(1, 2, 3, 4).contains(root.optInt("version")))
       throw new IllegalArgumentException("Arquivo de backup incompatível.");
     JSONArray meds = root.getJSONArray("meds"), doses = root.getJSONArray("doses");
     if (meds.length() > 500 || doses.length() > 100000)
@@ -597,9 +638,23 @@ public final class Store extends SQLiteOpenHelper {
           || !linkKeys.add(j.getString("source_id") + j.getString("item_key")))
         throw new IllegalArgumentException("Vínculo de importação inválido.");
     }
+    JSONArray mutes = root.optJSONArray("reminder_mutes");
+    if (mutes == null) mutes = new JSONArray();
+    if (mutes.length() > 50000) throw new IllegalArgumentException("Backup muito grande.");
+    Set<String> mutedDays = new HashSet<>();
+    for (int i = 0; i < mutes.length(); i++) {
+      JSONObject mute = mutes.getJSONObject(i);
+      long medId = mute.getLong("med_id");
+      String day = mute.getString("day");
+      if (!ids.contains(medId)
+          || !LocalDate.parse(day).toString().equals(day)
+          || !mutedDays.add(medId + ":" + day))
+        throw new IllegalArgumentException("Cancelamento de lembrete inválido no backup.");
+    }
     SQLiteDatabase db = getWritableDatabase();
     db.beginTransaction();
     try {
+      db.delete("reminder_mutes", null, null);
       db.delete("import_links", null, null);
       db.delete("import_sources", null, null);
       db.delete("doses", null, null);
@@ -655,6 +710,7 @@ public final class Store extends SQLiteOpenHelper {
           });
       restoreTable(db, "import_sources", sources, new String[] {"id", "label", "created", "data"});
       restoreTable(db, "import_links", links, new String[] {"source_id", "item_key", "med_id"});
+      restoreTable(db, "reminder_mutes", mutes, new String[] {"med_id", "day"});
       db.setTransactionSuccessful();
     } finally {
       db.endTransaction();

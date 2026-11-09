@@ -1,71 +1,57 @@
-# Validação — Dose 1.3.0
+# Validação — Dose 1.4.0
 
-APK nativo, pacote `br.com.well.dose`, versão 1.3.0, código 5. Verificações realizadas em 08/11/2026.
+Pacote `br.com.well.dose`, versão 1.4.0, código 6. Verificações em 08/11/2026.
 
-## Resultado
+## Resultados
 
-| Verificação | Resultado |
-|---|---|
-| Regras Java de agendamento, incluindo ausência de alarmes retroativos | 18 aprovadas |
-| Atualização de 1.2.0 para 1.3.0 com dados existentes | 7 aprovadas |
-| Som nos modos vibrar/silencioso, aviso único, volume, ações e doses simultâneas | 23 aprovadas |
-| Integração Android / SQLite / notificações / ações / estoque / backup | 25 aprovadas |
-| Importação por adição, duplicatas e compatibilidade de backup | 20 aprovadas |
-| Formatos, cores, histórico visual, estoque simultâneo e backups 1/2/3 | 17 aprovadas |
-| Calendário, temas claro/escuro e controles do alarme de teste | 26 aprovadas |
-| Alarme real com tela bloqueada: entrega, abertura automática e áudio | 3 aprovadas |
-| Toque em Adiar na tela de alarme e conferência do estoque | 2 aprovadas |
-| Alarme real desbloqueado e com Não perturbe permitindo alarmes: entrega, abertura automática e áudio | 3 aprovadas |
-| Toque em Tomei na tela de alarme e conferência do estoque | 2 aprovadas |
-| Assinatura v2 e v3, mesmo certificado da versão 1.2.0 | Verificada |
-| Alinhamento com zipalign | Verificado |
-| Inspeção da tela de alarme, informações, cores e botões fixos | Concluída |
+| Verificação | Aprovadas |
+|---|---:|
+| Regras Java de agendamento | 18 |
+| Atualização real de 1.3.0 e restauração de backup 3 | 7 |
+| Tomei disponível na agenda de hoje e ausente em dias futuros | 3 |
+| Cancelamento por medicamento e data, persistência e backup | 12 |
+| Integração SQLite, estoque, notificações, ações e backup | 25 |
+| Importação por adição e compatibilidade de backup | 20 |
+| Aparência, estoque simultâneo, histórico visual e backups antigos | 17 |
+| Notificação única, áudio, volume e cancelamento com dois alarmes ativos | 26 |
+| Calendário, temas e controles do alarme de teste | 26 |
+| Cancelamento pela interface com toques reais | 3 |
+| Tomei e confirmação pela interface com toques reais | 3 |
+| **Total** | **160** |
 
-Total: **146 verificações com contagem**, sem incluir as preparações dos cenários. Os registros desta execução estão em `verificacao/1.3.0/`.
+Preparações de dados não entram na contagem. Registros em `verificacao/1.4.0/`. Assinatura v2/v3 e alinhamento zipalign verificados; o certificado permanece o da versão anterior.
 
-## Uma notificação por dose
+## Tomada dentro do aplicativo
 
-O serviço de reprodução usa o identificador do próprio lembrete, sem criar o aviso auxiliar “alarme tocando”. Os testes observaram as notificações efetivamente publicadas pelo Android, suas ações e o indicador de serviço em primeiro plano. Duas doses simultâneas mantêm dois lembretes, um por dose; confirmar uma preserva o lembrete da outra. O resumo de grupo eventualmente gerado pelo Android não é uma dose adicional.
+A agenda oferece Tomei nas doses pendentes de hoje, inclusive mais de cinco minutos antes do horário, sem depender de notificação. Antes do horário, a confirmação identifica medicamento, dose e horário previsto. A interface mostra Tomado e o horário real após confirmar, atualiza progresso e histórico e desconta estoque uma vez. Dias futuros não oferecem registrar tomada antecipadamente.
 
-Foi corrigida também a ordem do encerramento: o lembrete pendente é destacado do serviço antes de pará-lo. Silenciar ou chegar ao fim da reprodução mantém o aviso e seus botões. Confirmar ou adiar remove somente o aviso correspondente. As ações não descontam estoque duas vezes.
+Na conferência visual, um medicamento fictício teve os avisos do dia cancelados; Tomei continuou disponível. Foram tocados Tomei e Já tomei no diálogo real. O banco confirmou o horário efetivo anterior ao previsto, estoque de 29 após iniciar com 30, ausência de reagendamento da dose e presença no histórico. A tela passou a mostrar 1 de 1 doses tomadas e 100%.
 
-## Reprodução e volume
+## Cancelamento limitado ao dia
 
-O MediaPlayer usa `USAGE_ALARM`. A reprodução foi verificada pelas configurações ativas de áudio do Android nos modos vibrar e silencioso, sem alterar o modo de toque de chamadas. Os casos com abertura automática registraram um player do Dose em estado `started`, sem silenciamento, além de uma única notificação da dose com duas ações.
+Cancelar lembretes do dia afeta todos os horários de um único medicamento na data selecionada. O diálogo informa nome e data e explica esse alcance. Os demais medicamentos e os próximos dias mantêm seus agendamentos.
 
-Foram conferidos o volume mínimo temporário, a restauração do nível original, a preservação de um ajuste manual durante a reprodução e a recuperação agendada sem serviço ativo. O emulador tem volume mínimo de alarmes 1 e máximo 7: a solicitação de volume zero é limitada a 1 pelo próprio Android. Os testes comparam o volume anterior efetivamente aplicado. Isso não é um teste de volume zero em um Samsung físico.
+O cancelamento não registra tomada ou dose pulada e não desconta estoque. Persiste ao reabrir o banco, recalcular fuso, editar aparência ou acrescentar horários no mesmo dia. Um adiamento antigo não reativa o dia cancelado. As doses continuam disponíveis para registro manual; avisos cancelados não aparecem como próximo lembrete.
 
-A obtenção do foco de áudio possui uma tentativa inicial e novas tentativas limitadas durante a abertura do alarme. Uma recusa não é tratada como autorização para reproduzir sem foco. O som contínuo tem limite de 60 segundos; a notificação permanece pendente após silenciar.
+Os testes também reproduziram dois medicamentos com alarmes ativos. Cancelar o primeiro preservou notificação, serviço e áudio do segundo. Cancelar o último encerrou áudio e aviso. A transferência do serviço remove o aviso cancelado e mantém apenas os lembretes válidos.
 
-No cenário desbloqueado, o sistema confirmou `ZEN_MODE_ALARMS`, com reprodução ativa do Dose. Não perturbe que bloqueia todos os alarmes continua obedecendo ao Android. O app oferece os atalhos para permitir alarmes e autorizar exceções; não desativa globalmente esse modo.
+## Dados e backup
 
-## Tela cheia e ações reais
+A migração do banco de 3 para 4 acrescenta somente a tabela de cancelamentos, indexada por medicamento e data. Na atualização real, foram comparados integralmente medicamentos, doses, importações e vínculos, com estoque, histórico e cores. Preferências escolhidas na versão 1.3.0 permaneceram.
 
-Foram programadas doses fictícias para 15 segundos depois, saindo da tela principal antes do disparo. O Android abriu automaticamente `AlarmActivity` tanto com a tela bloqueada quanto desbloqueada. As janelas, notificações e áudio foram inspecionados antes de reiniciar a instrumentação.
-
-A tela exibe nome, dose, concentração, aparência, horário previsto e observações. Os botões Tomei e Adiar ficam fora da área rolável. No cenário bloqueado, um toque real em Adiar preservou o estoque. No desbloqueado, um toque real em Tomei confirmou a dose e descontou uma unidade. Todas as capturas incluídas usam dados fictícios.
-
-Foram concedidas ao ambiente de teste as autorizações de notificações, alarmes exatos, tela cheia e aparecer sobre outros apps. Em celular desbloqueado, o Android pode usar somente um aviso no topo se a autorização para aparecer sobre outros apps não estiver ativa. Os atalhos correspondentes estão em Alertas.
-
-## Atualização e preservação dos dados
-
-A versão 1.2.0 recebeu cadastros com cores personalizadas, histórico, estoque, um relatório importado, vínculos e preferências fictícias. Depois de instalar 1.3.0 por cima, os registros completos foram comparados. O esquema do banco permanece na versão 3. A atualização não exige desinstalação ou reimportação.
-
-Na primeira execução desta atualização, o perfil ativa som, tela cheia e detalhes visíveis na tela bloqueada, conforme a solicitação. Tema e intervalo de adiamento permanecem. Escolhas feitas depois dessa atualização não são redefinidas. A opção Privacidade na tela bloqueada continua disponível para voltar a exigir desbloqueio.
-
-Os testes de importação, ausência de alarmes retroativos, backup e formatos/cores foram executados novamente. Backups 1, 2 e 3 continuam aceitos; relatórios importados e o histórico de doses já confirmadas permanecem preservados.
+O backup versão 4 inclui os dias cancelados e aceita os formatos 1, 2 e 3. Referências inválidas de cancelamento são rejeitadas antes de substituir dados. Importação de medicamentos, ausência de alertas retroativos e aparência foram verificadas novamente. Não é necessário desinstalar ou reimportar ao atualizar.
 
 ## Ambiente e limites
 
-Android 15 / API 35 em emulador isolado, tela 720 × 1600. Compilado com SDK 37, mínimo API 26. A interface do sistema do emulador precisou ser reiniciada após um bloqueio durante a conferência inicial. A validação final da interface e dos botões foi concluída; não houve exceção fatal do Dose no registro dessa etapa.
+Android 15 / API 35 em emulador isolado, tela 720 × 1600, com dados fictícios. Compilado com SDK 37, mínimo API 26. A tela inicial e a interface do sistema do emulador travaram durante a etapa visual; foram recuperadas antes dos toques e capturas finais. O registro final de AndroidRuntime não contém exceção fatal do Dose.
 
-Não houve teste em Samsung físico ou Android 17 em execução, nem avaliação de alto-falante físico, economia de bateria de fabricante ou todas as versões do Android. Depois de atualizar no aparelho, conferir as permissões em Alertas e executar Testar alarme em 15 segundos com tela bloqueada e desbloqueada. Uma compilação ou teste em emulador não comprova todos os comportamentos em um celular real.
+O áudio nativo foi verificado nos modos vibrar e silencioso, assim como manutenção do aviso após silenciar e restauração do volume. Esta execução não substitui teste em Samsung físico ou Android 17, alto-falante real ou restrições de bateria do fabricante. A abertura automática em tela bloqueada tem a evidência anterior em `verificacao/1.3.0/`; nesta versão foram verificados os controles, o filtro dos dias cancelados e a abertura da atividade pelo aviso. O Não perturbe continua sujeito às permissões de alarmes do Android.
 
 ## Integridade
 
-- APK: `Dose-1.3.0.apk`
+- APK: `Dose-1.4.0.apk`
 - Tamanho: 262767 bytes
-- SHA-256: `e77da5ff89f6d0d49e2e90da04caa8b1dab181bd7bce4aab21b65dd44921916a`
+- SHA-256: `8c3f410d7bcdd79f85d6f9b467b14871d39c0e227bb25069064573751c8953b4`
 - Certificado SHA-256: `0f4fac1c23c378c3ff9a6134a5905f01aee7dba215eb68e796fc0e363cd862d3`
 
-Dados pessoais, PDF, arquivo de importação e chaves de assinatura permanecem fora do histórico Git. A pasta de assinatura é incluída somente na entrega pessoal do projeto, para permitir futuras atualizações compatíveis.
+O histórico Git não inclui dados pessoais, PDF, importação pessoal ou chave de assinatura. A chave permanece somente na entrega privada do projeto para assinar futuras atualizações.

@@ -68,7 +68,8 @@ public final class AlarmActivity extends Activity {
   private List<Dose> pending() {
     return Store.get(this)
         .doses(
-            "status='pending' AND last_alert>0 AND snoozed=0 AND expires>?",
+            "status='pending' AND last_alert>0 AND snoozed=0 AND reminder_cancelled=0 AND"
+                + " expires>?",
             new String[] {"" + System.currentTimeMillis()},
             "scheduled,id");
   }

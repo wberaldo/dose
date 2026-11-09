@@ -1,5 +1,16 @@
 # Alterações
 
+## 1.4.0
+
+- Cancela os lembretes de um medicamento apenas na data selecionada, preservando os demais remédios e dias.
+- Mantém Tomei disponível ao cancelar avisos, sem registrar dose pulada ou alterar estoque.
+- Persiste os dias cancelados em backup versão 4, com restauração de backups 1, 2 e 3.
+
+- Disponibiliza Tomei nas doses pendentes de hoje, mesmo antes do lembrete.
+- Exibe nome, dose e horário ao confirmar uma tomada antecipada.
+- Atualiza o estado Tomado, horário real, progresso, histórico, estoque e lembretes pela agenda.
+- Mantém as doses de dias futuros sem ações de tomada ou adiamento.
+
 ## 1.3.0
 
 - Une o aviso do serviço de áudio à notificação da dose, sem aviso auxiliar.

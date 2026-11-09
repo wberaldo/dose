@@ -4,11 +4,11 @@ Aplicativo nativo em português para organizar medicamentos e lembrar os horári
 
 ## Atualizar de versões anteriores
 
-Abra o APK 1.3.0 e escolha **Atualizar**. O pacote e a chave de assinatura são os mesmos; medicamentos, histórico, estoque e preferências permanecem no aparelho. Não desinstale a versão anterior para atualizar.
+Abra o APK 1.4.0 e escolha **Atualizar**. O pacote e a chave de assinatura são os mesmos; medicamentos, histórico, estoque e preferências permanecem no aparelho. Não desinstale a versão anterior para atualizar.
 
 ## Instalar e começar
 
-1. No celular, abra `Dose-1.3.0.apk` e siga a instalação. Se o Android solicitar, autorize a instalação de apps pela fonte usada para abrir o arquivo.
+1. No celular, abra `Dose-1.4.0.apk` e siga a instalação. Se o Android solicitar, autorize a instalação de apps pela fonte usada para abrir o arquivo.
 2. Abra o Dose e toque em **Cadastrar medicamento** ou **Remédios → Novo medicamento**.
 3. Informe nome, concentração se desejar, quantidade por dose, unidade, horários, dias da semana e período. Use os horários da sua prescrição.
 4. Na aba **Alertas**, autorize **Notificações**, **Alarmes e lembretes**, **Tela cheia na tela bloqueada** e **Tela cheia com o celular em uso**. Esta última abre a autorização do Android para aparecer sobre outros apps. Se usar Não perturbe, permita alarmes no modo ativo. Confira também a configuração de bateria.
@@ -17,6 +17,20 @@ Abra o APK 1.3.0 e escolha **Atualizar**. O pacote e a chave de assinatura são 
 O app inicia vazio. Não importa nem presume medicamentos, doses ou horários pessoais.
 
 Os alarmes começam nos próximos horários após cadastrar ou importar. Um horário que já passou antes da importação não dispara um aviso retroativo; seu registro no relatório original continua disponível em Histórico.
+
+## Registrar uma tomada na aba Hoje
+
+Na aba **Hoje**, localize a dose na sua rotina e toque em **Tomei**. O botão aparece nas doses pendentes do dia, inclusive antes de chegar o lembrete. Se ainda faltar mais de um minuto para o horário previsto, o app mostra o medicamento, a dose e o horário e pede confirmação em **Já tomei**. **Voltar** mantém o agendamento.
+
+Depois de confirmar, a dose aparece como **Tomado**, com o horário real, e o progresso diário é atualizado. O registro entra no Histórico, desconta o estoque uma única vez e encerra os avisos daquela dose. O horário previsto e as próximas doses continuam preservados. Não é necessário esperar uma notificação.
+
+Doses de dias futuros não oferecem esse botão. Para uma dose que já aparece como **Sem registro**, use **Já tomei • registrar horário** e informe quando ocorreu a tomada.
+
+## Cancelar lembretes somente em um dia
+
+No cartão de uma dose, toque em **Cancelar lembretes do dia**. Confira o medicamento e a data e confirme em **Cancelar neste dia**. O cancelamento vale para todos os horários **desse medicamento nessa data**. Não cancela outros remédios nem as doses dos próximos dias.
+
+Os avisos e repetições desse dia são encerrados, sem marcar a dose como tomada ou pulada e sem alterar o estoque. **Tomei** continua disponível. O cartão passa a mostrar **Sem avisos no dia**. O cancelamento fica salvo ao reabrir o app, restaurar um backup ou editar os horários do medicamento, inclusive ao acrescentar horários no mesmo dia.
 
 ## Importar um relatório MyTherapy
 
@@ -53,7 +67,7 @@ Ele reconhece o formato em português mostrado nesta entrega. Se não reconhecer
 - Repetições configuráveis: inicialmente a cada 5 minutos, com até 3 repetições após o aviso inicial. É possível desativar as repetições.
 - Adiamento rápido configurável pela notificação; na agenda há opções de 5, 10, 15 ou 30 minutos.
 - Tela cheia com nome, dose, concentração, desenho, cores, horário e observações; Tomei e Adiar ficam fixos enquanto os detalhes podem rolar. A tela bloqueada usa a autorização de tela cheia do Android. Para abrir também sobre um app em uso, autorize aparecer sobre outros apps. Sem essa segunda autorização, o Android pode usar somente um aviso no topo enquanto o celular está desbloqueado.
-- O perfil desta atualização ativa som, tela cheia e detalhes visíveis na tela bloqueada, conforme a solicitação. Em **Alertas → Privacidade na tela bloqueada**, é possível voltar a exigir desbloqueio para mostrar detalhes e confirmar. Alterações feitas após a atualização são mantidas.
+- O perfil de alarme introduzido na versão 1.3.0 ativa som, tela cheia e detalhes visíveis na tela bloqueada, conforme a solicitação. Em **Alertas → Privacidade na tela bloqueada**, é possível voltar a exigir desbloqueio para mostrar detalhes e confirmar. Alterações feitas após a atualização são mantidas.
 - Reagendamento após reinício, atualização do aplicativo, alteração de relógio/fuso e concessão da permissão de alarme exato.
 - As próximas ocorrências ficam registradas no banco. O agendamento não depende de uma tela aberta, conexão com a internet ou serviço permanente.
 - Uma verificação de manutenção separada mantém a agenda atualizada. Ela usa um alarme aproximado e não aparece como um alarme de medicamento no relógio do sistema.
@@ -79,7 +93,7 @@ A atualização mantém os cadastros existentes com sua cor anterior. Depois de 
 
 Salvar uma edição com o campo de estoque inalterado mantém os descontos de doses confirmadas enquanto o cadastro estava aberto. Uma nova quantidade digitada continua sendo tratada como ajuste explícito do estoque.
 
-Os próximos lembretes recebem a aparência atualizada. Doses já confirmadas mantêm o desenho e as cores usados na época. O backup versão 3 inclui esses dados e aceita restaurações das versões 1 e 2.
+Os próximos lembretes recebem a aparência atualizada. Doses já confirmadas mantêm o desenho e as cores usados na época. O backup versão 4 inclui esses dados e os cancelamentos por dia; aceita restaurações das versões 1, 2 e 3.
 
 ## Samsung / One UI
 
@@ -110,7 +124,7 @@ sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0' 'platform-tools'
 python3 tools/build.py --sdk /caminho/absoluto/android-sdk --test
 ```
 
-Requer Java 17 com o compilador (`java com.sun.tools.javac.Main`) e `keytool`, Python 3 e o SDK oficial. O APK assinado sai em `build/Dose-1.3.0.apk`.
+Requer Java 17 com o compilador (`java com.sun.tools.javac.Main`) e `keytool`, Python 3 e o SDK oficial. O APK assinado sai em `build/Dose-1.4.0.apk`.
 
 `signing/` contém a chave pessoal usada nesta versão e sua configuração local. Guarde essa pasta para assinar futuras atualizações compatíveis com o APK instalado. A chave e sua senha pertencem à entrega pessoal; a pasta `signing/` não é versionada. Guarde a chave para gerar atualizações da instalação existente. A compilação pelo Android Studio usa a configuração de assinatura escolhida no próprio Studio.
 
@@ -146,4 +160,4 @@ Nenhum repositório remoto foi configurado e nenhum push foi realizado. Depois d
 - Não perturbe e políticas: https://developer.android.com/reference/android/app/NotificationManager
 - Restrições para tela cheia: https://developer.android.com/about/versions/14/behavior-changes-14
 
-Versão 1.3.0. Entrega pessoal instalável; não publicada na Play Store.
+Versão 1.4.0. Entrega pessoal instalável; não publicada na Play Store.

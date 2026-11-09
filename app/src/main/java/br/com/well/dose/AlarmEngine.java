@@ -3,6 +3,7 @@ package br.com.well.dose;
 import android.app.*;
 import android.content.*;
 import android.os.*;
+import java.time.LocalDate;
 import java.util.*;
 
 /** One durable alarm dispatcher groups simultaneous doses and survives process death. */
@@ -183,8 +184,18 @@ public final class AlarmEngine {
       }
       if (n.getId() > 0 && n.getId() < Alerts.SERVICE_ID) {
         Dose d = Store.get(c).dose(n.getId());
-        if (d == null || !d.actionable() || d.snoozed) nm.cancel(n.getId());
+        if (d == null || !d.actionable() || d.snoozed || d.reminderCancelled) nm.cancel(n.getId());
       }
+    }
+  }
+
+  public static void cancelReminders(Context c, long medId, LocalDate day) {
+    synchronized (LOCK) {
+      Store.get(c).cancelReminders(medId, day);
+      cancelStale(c);
+      RingingService.stopCancelledReminders(c);
+      refresh(c);
+      c.sendBroadcast(new Intent("br.com.well.dose.CHANGED").setPackage(c.getPackageName()));
     }
   }
 }

@@ -43,6 +43,33 @@ public final class RingingService extends Service {
     else c.stopService(new Intent(c, RingingService.class));
   }
 
+  public static void stopCancelledReminders(Context c) {
+    RingingService current = running;
+    if (current == null || current.test) return;
+    current.handler.post(
+        () -> {
+          if (running != current || current.activeDose(current.notificationId) != null) return;
+          List<Dose> others =
+              Store.get(c)
+                  .doses(
+                      "status='pending' AND last_alert>0 AND snoozed=0 AND reminder_cancelled=0"
+                          + " AND expires>?",
+                      new String[] {"" + System.currentTimeMillis()},
+                      "last_alert DESC,id");
+          if (others.isEmpty()) current.stopAlarm();
+          else
+            try {
+              c.startService(
+                  new Intent(c, RingingService.class)
+                      .setAction("RING")
+                      .putExtra("dose_id", others.get(0).id)
+                      .putExtra("keep_screen", true));
+            } catch (RuntimeException e) {
+              current.stopAlarm();
+            }
+        });
+  }
+
   private boolean keepReminder() {
     return test
         ? Prefs.get(this).getBoolean("test_visible", false)
@@ -65,6 +92,7 @@ public final class RingingService extends Service {
     Dose d = Store.get(this).dose(id);
     return d != null
             && d.actionable()
+            && !d.reminderCancelled
             && !d.snoozed
             && d.lastAlert > 0
             && d.expires > System.currentTimeMillis()
@@ -89,7 +117,8 @@ public final class RingingService extends Service {
       List<Dose> candidates =
           Store.get(this)
               .doses(
-                  "status='pending' AND last_alert>0 AND snoozed=0 AND expires>?",
+                  "status='pending' AND last_alert>0 AND snoozed=0 AND reminder_cancelled=0 AND"
+                      + " expires>?",
                   new String[] {"" + System.currentTimeMillis()},
                   "last_alert DESC,id");
       if (!candidates.isEmpty()) dose = candidates.get(0);
@@ -100,7 +129,11 @@ public final class RingingService extends Service {
       return START_NOT_STICKY;
     }
     long id = newTest ? Alerts.TEST_ID : dose.id;
-    if (notificationId != 0 && notificationId != id) stopForeground(STOP_FOREGROUND_DETACH);
+    if (notificationId != 0 && notificationId != id) {
+      boolean keepPrevious = keepReminder();
+      stopForeground(keepPrevious ? STOP_FOREGROUND_DETACH : STOP_FOREGROUND_REMOVE);
+      if (!keepPrevious) Alerts.cancel(this, notificationId);
+    }
     notificationId = id;
     test = newTest;
     Notification notification = Alerts.notification(this, dose, false);
@@ -151,7 +184,8 @@ public final class RingingService extends Service {
           VibrationEffect.createWaveform(new long[] {0, 350, 250, 350, 250, 600, 1100}, 0),
           AlarmAudio.attributes());
     }
-    Alerts.openFullScreen(this, test ? -1L : id);
+    if (intent == null || !intent.getBooleanExtra("keep_screen", false))
+      Alerts.openFullScreen(this, test ? -1L : id);
     handler.postDelayed(this::stopAlarm, 60000L);
     return START_NOT_STICKY;
   }

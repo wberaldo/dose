@@ -169,7 +169,7 @@ public final class MainActivity extends Activity {
     for (Dose d : today) if ("taken".equals(d.status)) taken++;
     List<Dose> upcoming =
         db.doses(
-            "status='pending' AND expires>?",
+            "status='pending' AND reminder_cancelled=0 AND expires>?",
             new String[] {"" + System.currentTimeMillis()},
             "scheduled,id LIMIT 1");
     LinearLayout hero = Ui.column(this);
@@ -346,7 +346,11 @@ public final class MainActivity extends Activity {
         color = Ui.AMBER;
         break;
       default:
-        if (d.snoozed) {
+        if (d.reminderCancelled) {
+          status = "Sem avisos no dia";
+          bg = Ui.LINE;
+          color = Ui.MUTED;
+        } else if (d.snoozed) {
           status = "Adiado · " + time(d.nextAlert);
         } else if (d.scheduled < System.currentTimeMillis()) {
           status = "Aguardando você";
@@ -367,15 +371,26 @@ public final class MainActivity extends Activity {
     Ui.add(info, Ui.text(this, d.detail, 13, Ui.MUTED, false), 6);
     Ui.add(card, label, 18);
     if (!d.notes.isEmpty()) Ui.add(card, Ui.text(this, d.notes, 13, Ui.MUTED, false), 12);
-    if (d.actionable() && d.scheduled <= System.currentTimeMillis() + 300000) {
+    LocalDate doseDate =
+        Instant.ofEpochMilli(d.scheduled).atZone(ZoneId.systemDefault()).toLocalDate();
+    boolean canAdjustReminder =
+        !d.reminderCancelled
+            && !doseDate.isAfter(LocalDate.now())
+            && d.scheduled <= System.currentTimeMillis() + 300000;
+    if (d.actionable() && !doseDate.isAfter(LocalDate.now())) {
       LinearLayout actions = Ui.row(this);
-      actions.addView(
-          Ui.button(this, "✓  Tomei", true, () -> take(d)),
-          new LinearLayout.LayoutParams(0, -2, 1));
-      LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(0, -2, 1);
-      sp.leftMargin = dp(9);
-      actions.addView(Ui.button(this, "Adiar", false, () -> snooze(d)), sp);
+      TextView take = Ui.button(this, "✓  Tomei", true, () -> take(d));
+      take.setTag("take:" + d.id);
+      take.setContentDescription("Tomei " + d.name + ", dose prevista para " + time(d.scheduled));
+      actions.addView(take, new LinearLayout.LayoutParams(0, -2, 1));
+      if (canAdjustReminder) {
+        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(0, -2, 1);
+        sp.leftMargin = dp(9);
+        actions.addView(Ui.button(this, "Adiar", false, () -> snooze(d)), sp);
+      }
       Ui.add(card, actions, 17);
+    }
+    if (d.actionable() && canAdjustReminder) {
       TextView skip = Ui.text(this, "Pular esta dose", 12, Ui.MUTED, false);
       skip.setPadding(0, dp(16), 0, dp(5));
       skip.setMinHeight(dp(44));
@@ -400,6 +415,13 @@ public final class MainActivity extends Activity {
       Ui.add(card, Ui.text(this, "Registrado em " + time(d.actual), 12, Ui.TEAL, false), 12);
     if ("missed".equals(d.status))
       Ui.add(card, Ui.button(this, "Já tomei • registrar horário", false, () -> recordTime(d)), 14);
+    if (d.actionable() && !d.reminderCancelled) {
+      TextView cancel =
+          Ui.button(this, "Cancelar lembretes do dia", false, () -> cancelReminders(d));
+      cancel.setTag("cancel:" + d.id);
+      cancel.setContentDescription("Cancelar lembretes de " + d.name + " em " + doseDate);
+      Ui.add(card, cancel, 10);
+    }
     Ui.add(body, card, 14);
   }
 
@@ -946,7 +968,7 @@ public final class MainActivity extends Activity {
         body,
         Ui.text(
             this,
-            "Dose 1.3.0 • Funciona sem conta e sem internet.\n"
+            "Dose 1.4.0 • Funciona sem conta e sem internet.\n"
                 + "Os dados ficam neste aparelho. Faça backups antes de desinstalar. Cadastre"
                 + " apenas os horários da sua prescrição.",
             12,
@@ -1147,7 +1169,13 @@ public final class MainActivity extends Activity {
     if (d.scheduled > System.currentTimeMillis() + 60000)
       new AlertDialog.Builder(this)
           .setTitle("Confirmar antes do horário?")
-          .setMessage("Registre apenas se você já tomou esta dose.")
+          .setMessage(
+              d.name
+                  + "\n"
+                  + d.detail
+                  + "\nPrevisto para "
+                  + time(d.scheduled)
+                  + "\n\nRegistre apenas se você já tomou esta dose.")
           .setNegativeButton("Voltar", null)
           .setPositiveButton(
               "Já tomei",
@@ -1160,6 +1188,26 @@ public final class MainActivity extends Activity {
       AlarmEngine.action(this, d.id, "TAKE");
       render();
     }
+  }
+
+  private void cancelReminders(Dose d) {
+    LocalDate day = Instant.ofEpochMilli(d.scheduled).atZone(ZoneId.systemDefault()).toLocalDate();
+    String date = day.format(DateTimeFormatter.ofPattern("d 'de' MMMM", pt));
+    new AlertDialog.Builder(this)
+        .setTitle("Cancelar lembretes de " + date + "?")
+        .setMessage(
+            d.name
+                + "\n\nEncerra os avisos de todos os horários deste medicamento nesse dia."
+                + " Você ainda poderá registrar Tomei. O estoque não será alterado."
+                + "\n\nOs outros medicamentos e os próximos dias continuam normalmente.")
+        .setNegativeButton("Voltar", null)
+        .setPositiveButton(
+            "Cancelar neste dia",
+            (dialog, which) -> {
+              AlarmEngine.cancelReminders(this, d.medId, day);
+              render();
+            })
+        .show();
   }
 
   private void snooze(Dose d) {
