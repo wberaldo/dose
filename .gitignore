@@ -1,0 +1,14 @@
+build/
+.gradle/
+.idea/
+local.properties
+signing/
+*.apk
+*.idsig
+*.jks
+*.keystore
+private/
+reports/
+imports/
+*.pdf
+__pycache__/

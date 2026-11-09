@@ -1,0 +1,5 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="br.com.well.dose.test">
+    <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="37" />
+    <application android:label="Dose tests" />
+    <instrumentation android:name="br.com.well.dose.DeviceTests" android:targetPackage="br.com.well.dose" android:label="Dose integration tests" />
+</manifest>

@@ -1,0 +1,32 @@
+<resources>
+    <style name="AppTheme" parent="AppThemeLight" />
+    <style name="AppThemeLight" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#137C70</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:navigationBarColor">#FAFBF8</item>
+        <item name="android:statusBarColor">#FAFBF8</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowBackground">#FAFBF8</item>
+        <item name="android:colorBackground">#FAFBF8</item>
+        <item name="android:textColorPrimary">#19372F</item>
+        <item name="android:textColorSecondary">#64776F</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
+    <style name="AppThemeDark" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#8ED5C3</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:navigationBarColor">#101916</item>
+        <item name="android:statusBarColor">#101916</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowBackground">#101916</item>
+        <item name="android:colorBackground">#101916</item>
+        <item name="android:colorBackgroundFloating">#192620</item>
+        <item name="android:textColorPrimary">#E7F2EB</item>
+        <item name="android:textColorSecondary">#A8BDB2</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
+</resources>
