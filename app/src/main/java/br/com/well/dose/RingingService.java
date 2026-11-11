@@ -160,14 +160,14 @@ public final class RingingService extends Service {
         .commit();
     NotificationChannel channel =
         ((NotificationManager) getSystemService(NOTIFICATION_SERVICE))
-            .getNotificationChannel(Alerts.CHANNEL);
+            .getNotificationChannel(notification.getChannelId());
     boolean dnd = AlarmAudio.dndAllowsAlarms(this);
     if (Prefs.ring(this) && channel.getImportance() >= NotificationManager.IMPORTANCE_DEFAULT) {
       if (dnd) {
         AlarmAudio.acquireVolume(this, System.currentTimeMillis() + 70000L);
         Uri tone = channel.getSound();
         if (tone == null && Prefs.get(this).getBoolean("force_sound", true))
-          tone = AlarmAudio.builtIn(this);
+          tone = AlarmTones.uri(this, AlarmTones.key(this));
         if (tone != null) {
           Uri selected = tone;
           handler.postDelayed(() -> play(selected, false), 200);

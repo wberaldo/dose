@@ -1,3 +1,13 @@
+# 1.7.3 — 10/11/2026
+
+- Adiciona Suave, Gotas, Sinos, Pulso, Digital e Clássico, além do som original, com prévia e confirmação em Alertas.
+- Interrompe a prévia ao cancelar, sair do app ou perder o foco de áudio, sem modificar o volume do aparelho.
+- Mantém os avisos e o som contínuo associados ao toque escolhido, respeitando as configurações do Android e reutilizando um conjunto limitado de canais.
+- Inclui a escolha do toque no backup e mantém a leitura de arquivos anteriores.
+- Corrige o salto para o topo provocado pela reconstrução da tela a cada 30 segundos e nos avisos de atualização dos dados.
+- Mantém a posição de cada aba e restaura a rolagem ao voltar de outro cadastro ou recriar a atividade.
+- Preserva pacote, assinatura, configuração Google e banco versão 4.
+
 # 1.7.2 — 09/11/2026
 
 - Remove a estrela do ícone do aplicativo e centraliza uma cápsula branca e verde no fundo verde do Dose.

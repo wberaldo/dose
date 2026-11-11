@@ -2,7 +2,9 @@
 
 Aplicativo Android de uso pessoal para organizar medicamentos, configurar lembretes e registrar tomadas. Interface em português, dados locais e opções de backup por arquivo ou Google Drive.
 
-Versão do aplicativo: **1.7.2**. Pacote: `br.com.well.dose`. Ícone com uma cápsula branca e verde, sem estrela.
+Versão do aplicativo: **1.7.3**. Pacote: `br.com.well.dose`. Ícone com uma cápsula branca e verde, sem estrela.
+
+Em **Alertas → Toque do alarme**, escolha entre sete opções e ouça a prévia antes de salvar. A atualização periódica preserva a rolagem, inclusive ao voltar a uma aba ou recriar a tela.
 
 Repositório: [wberaldo/dose](https://github.com/wberaldo/dose). Site publicado: [wberaldo.github.io/dose](https://wberaldo.github.io/dose/).
 
@@ -14,7 +16,8 @@ Repositório: [wberaldo/dose](https://github.com/wberaldo/dose). Site publicado:
 - [Instalação, recursos e compilação](LEIA-ME.md)
 - [Configuração Google e autorização da conta](GOOGLE-DRIVE-CONFIGURACAO.md)
 - [Publicação das páginas no GitHub Pages](PUBLICACAO-GITHUB.md)
-- [Validação da versão 1.7.2](VALIDACAO-1.7.2.md)
+- [Validação da versão 1.7.3](VALIDACAO-1.7.3.md)
+- [Validação da alteração de ícone na versão 1.7.2](VALIDACAO-1.7.2.md)
 - [Validação funcional da versão 1.7.1 e limites conhecidos](VALIDACAO.md)
 - [Histórico de alterações](CHANGELOG.md)
 

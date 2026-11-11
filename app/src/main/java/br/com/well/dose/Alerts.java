@@ -13,27 +13,61 @@ public final class Alerts {
   public static final String CHANNEL = "dose_alarms_v1", INFO = "dose_status_v1";
   public static final int SERVICE_ID = 900000001, TEST_ID = 900000002;
 
+  public static String channelId(Context c) {
+    return channelId(AlarmTones.key(c));
+  }
+
+  public static String channelId(String key) {
+    if (!AlarmTones.valid(key)) throw new IllegalArgumentException("Toque inválido.");
+    return "original".equals(key) ? CHANNEL : "dose_alarms_" + key + "_v1";
+  }
+
+  public static void selectTone(Context c, String key) {
+    if (!AlarmTones.valid(key)) throw new IllegalArgumentException("Toque inválido.");
+    channels(c);
+    String previous = channelId(c);
+    Prefs.get(c).edit().putString("previous_alarm_channel", previous)
+        .putString(AlarmTones.PREF, key).commit();
+    channels(c);
+  }
+
   public static void channels(Context c) {
     NotificationManager nm = (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
-    NotificationChannel alarm =
-        new NotificationChannel(
-            CHANNEL, "Alarmes de medicamentos", NotificationManager.IMPORTANCE_HIGH);
-    alarm.setDescription(
-        "Horários das doses, adiamentos e repetições. Use som de alarme, vibração e exibição na"
-            + " tela bloqueada.");
-    alarm.setSound(
-        android.net.Uri.parse("android.resource://" + c.getPackageName() + "/raw/dose_alarm"),
-        new AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_ALARM)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .build());
-    alarm.enableVibration(true);
-    alarm.setVibrationPattern(new long[] {0, 400, 220, 400, 220, 650});
-    alarm.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
-    alarm.setShowBadge(true);
-    if (nm.isNotificationPolicyAccessGranted() && Prefs.get(c).getBoolean("force_sound", true))
-      alarm.setBypassDnd(true);
-    nm.createNotificationChannel(alarm);
+    String id = channelId(c);
+    NotificationChannel alarm = nm.getNotificationChannel(id);
+    if (alarm == null) {
+      NotificationChannel previous = nm.getNotificationChannel(
+          Prefs.get(c).getString("previous_alarm_channel", CHANNEL));
+      alarm =
+          new NotificationChannel(
+              id, "Alarmes de medicamentos · " + AlarmTones.label(c),
+              previous == null ? NotificationManager.IMPORTANCE_HIGH : previous.getImportance());
+      alarm.setDescription(
+          "Horários das doses, adiamentos e repetições. Use som de alarme, vibração e exibição na"
+              + " tela bloqueada.");
+      alarm.setSound(
+          AlarmTones.uri(c, AlarmTones.key(c)),
+          new AudioAttributes.Builder()
+              .setUsage(AudioAttributes.USAGE_ALARM)
+              .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+              .build());
+      alarm.enableVibration(true);
+      alarm.setVibrationPattern(new long[] {0, 400, 220, 400, 220, 650});
+      alarm.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
+      alarm.setShowBadge(true);
+      if (nm.isNotificationPolicyAccessGranted() && Prefs.get(c).getBoolean("force_sound", true))
+        alarm.setBypassDnd(true);
+      if (previous != null) {
+        if (previous.getVibrationPattern() != null) alarm.setVibrationPattern(previous.getVibrationPattern());
+        alarm.enableVibration(previous.shouldVibrate());
+        alarm.setLockscreenVisibility(previous.getLockscreenVisibility());
+        alarm.setShowBadge(previous.canShowBadge());
+        alarm.enableLights(previous.shouldShowLights());
+        alarm.setLightColor(previous.getLightColor());
+        if (nm.isNotificationPolicyAccessGranted()) alarm.setBypassDnd(previous.canBypassDnd());
+      }
+      nm.createNotificationChannel(alarm);
+    }
     NotificationChannel info =
         new NotificationChannel(INFO, "Estado do alarme", NotificationManager.IMPORTANCE_LOW);
     info.setSound(null, null);
@@ -48,7 +82,7 @@ public final class Alerts {
             || c.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
                 == PackageManager.PERMISSION_GRANTED)
         && nm.areNotificationsEnabled()
-        && nm.getNotificationChannel(CHANNEL).getImportance()
+        && nm.getNotificationChannel(channelId(c)).getImportance()
             != NotificationManager.IMPORTANCE_NONE;
   }
 
@@ -129,13 +163,13 @@ public final class Alerts {
         PendingIntent.getActivity(
             c, 0, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE, options);
     Notification publicVersion =
-        new Notification.Builder(c, CHANNEL)
+        new Notification.Builder(c, channelId(c))
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Dose • hora do seu cuidado")
             .setContentText("Desbloqueie para ver o medicamento.")
             .build();
     Notification.Builder b =
-        new Notification.Builder(c, CHANNEL)
+        new Notification.Builder(c, channelId(c))
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(name)
             .setContentText(text)

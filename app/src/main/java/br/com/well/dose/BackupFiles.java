@@ -30,6 +30,7 @@ public final class BackupFiles {
       JSONObject settings = new JSONObject();
       Map<String, ?> values = Prefs.get(c).getAll();
       if (values.containsKey("theme")) settings.put("theme", values.get("theme"));
+      settings.put(AlarmTones.PREF, AlarmTones.key(c));
       for (String key : BOOLEANS) if (values.containsKey(key)) settings.put(key, values.get(key));
       for (String key : INTS) if (values.containsKey(key)) settings.put(key, values.get(key));
       root.put("settings", settings);
@@ -57,6 +58,10 @@ public final class BackupFiles {
     if (settings.has("theme")
         && !Arrays.asList("system", "light", "dark").contains(settings.getString("theme")))
       throw new IOException("Aparência inválida no backup.");
+    if (settings.has(AlarmTones.PREF)
+        && (!(settings.get(AlarmTones.PREF) instanceof String)
+            || !AlarmTones.valid(settings.getString(AlarmTones.PREF))))
+      throw new IOException("Toque inválido no backup.");
     for (String key : BOOLEANS)
       if (settings.has(key) && !(settings.get(key) instanceof Boolean))
         throw new IOException("Configuração inválida no backup.");
@@ -80,12 +85,15 @@ public final class BackupFiles {
     synchronized (AlarmEngine.LOCK) {
       Store.get(c).importJson(root);
       SharedPreferences.Editor edit = Prefs.get(c).edit();
+      edit.putString("previous_alarm_channel", Alerts.channelId(c));
+      edit.putString(AlarmTones.PREF, settings.optString(AlarmTones.PREF, "original"));
       if (settings.has("theme")) edit.putString("theme", settings.getString("theme"));
       for (String key : BOOLEANS)
         if (settings.has(key)) edit.putBoolean(key, settings.getBoolean(key));
       for (String key : INTS) if (settings.has(key)) edit.putInt(key, settings.getInt(key));
       // An installed backup must not reapply this older release's initial profile next update.
       edit.putBoolean("alarm_profile_130", true).commit();
+      Alerts.channels(c);
       Store.get(c).rezone(System.currentTimeMillis());
       Store.get(c)
           .getWritableDatabase()

@@ -4,11 +4,11 @@ Aplicativo nativo em português para organizar medicamentos e lembrar os horári
 
 ## Atualizar de versões anteriores
 
-Abra o APK 1.7.2 e escolha **Atualizar**. Esta versão troca o ícone por uma cápsula branca e verde centralizada, sem estrela. O pacote e a chave de assinatura são os mesmos; medicamentos, histórico, estoque e preferências permanecem no aparelho. Não desinstale a versão anterior para atualizar.
+Abra o APK 1.7.3 e escolha **Atualizar**. Esta versão acrescenta seis toques e corrige a tela que voltava ao topo nas atualizações automáticas. Mantém o ícone de cápsula sem estrela, o pacote e a assinatura originais. Medicamentos, histórico, estoque e preferências permanecem no aparelho. Não desinstale a versão anterior para atualizar.
 
 ## Instalar e começar
 
-1. No celular, abra `Dose-1.7.2.apk` e siga a instalação. Se o Android solicitar, autorize a instalação de apps pela fonte usada para abrir o arquivo.
+1. No celular, abra `Dose-1.7.3.apk` e siga a instalação. Se o Android solicitar, autorize a instalação de apps pela fonte usada para abrir o arquivo.
 2. Abra o Dose e toque em **Cadastrar medicamento** ou **Remédios → Novo medicamento**.
 3. Informe nome, concentração se desejar, quantidade por dose, unidade, horários, dias da semana e período. Use os horários da sua prescrição.
 4. Na aba **Alertas**, autorize **Notificações**, **Alarmes e lembretes**, **Tela cheia na tela bloqueada** e **Tela cheia com o celular em uso**. Esta última abre a autorização do Android para aparecer sobre outros apps. Se usar Não perturbe, permita alarmes no modo ativo. Confira também a configuração de bateria.
@@ -17,6 +17,18 @@ Abra o APK 1.7.2 e escolha **Atualizar**. Esta versão troca o ícone por uma c�
 O app inicia vazio. Não importa nem presume medicamentos, doses ou horários pessoais.
 
 Os alarmes começam nos próximos horários após cadastrar ou importar. Um horário que já passou antes da importação não dispara um aviso retroativo; seu registro no relatório original continua disponível em Histórico.
+
+## Escolher o toque do alarme
+
+Em **Alertas → Do seu jeito → Toque do alarme**, toque em uma opção para ouvir e confirme em **Usar toque**. **Cancelar** preserva a escolha anterior. As opções são **Dose original / som do Android**, **Suave**, **Gotas**, **Sinos**, **Pulso**, **Digital** e **Clássico**. Os sons estão no APK e funcionam sem internet.
+
+A prévia usa o volume de alarmes atual do aparelho e para ao fechar a escolha ou sair do app. Se esse volume estiver zerado, o Dose avisa que é necessário aumentá-lo para ouvir a prévia. O volume mínimo configurado no Dose continua sendo aplicado aos alarmes reais, conforme as opções ativadas.
+
+O toque escolhido vale para os próximos lembretes e para o teste de 15 segundos. A opção **Som e vibração do aviso** abre os ajustes do som atualmente usado no Android. Alterações feitas nesses ajustes continuam sendo respeitadas. A opção original preserva o som que já estava definido no Android.
+
+A preferência de toque entra nos backups. Arquivos antigos continuam compatíveis e usam a opção original quando não contêm essa preferência. Os seis novos sons são gerados pelo script `tools/generate_alarm_tones.py`, sem amostras externas.
+
+A posição da rolagem é mantida durante as atualizações automáticas de 30 segundos, ao voltar de outro cadastro, entre as abas e após recriar a atividade, como ao mudar a aparência ou a orientação. Mudanças que encurtem o conteúdo podem limitar a posição ao final disponível.
 
 ## Backup e Google Drive
 
@@ -140,7 +152,7 @@ sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0' 'platform-tools'
 python3 tools/build.py --sdk /caminho/absoluto/android-sdk --test
 ```
 
-Requer JDK 17 completo, Python 3 e o SDK oficial. O wrapper baixa o Gradle na primeira execução; o SDK Google e as dependências são obtidos dos repositórios oficiais. O APK assinado sai em `build/Dose-1.7.2.apk`.
+Requer JDK 17 ou mais recente com compilador, Python 3 e o SDK oficial. O wrapper baixa o Gradle na primeira execução; o SDK Google e as dependências são obtidos dos repositórios oficiais. O APK assinado sai em `build/Dose-1.7.3.apk`.
 
 `signing/` contém a chave pessoal usada nesta versão e sua configuração local. Guarde essa pasta para assinar futuras atualizações compatíveis com o APK instalado. A chave e sua senha pertencem à entrega pessoal; a pasta `signing/` não é versionada. Guarde a chave para gerar atualizações da instalação existente. A compilação usa a chave pessoal quando a pasta signing/ está presente. Sem a chave original, um novo APK não pode atualizar a instalação existente.
 
@@ -184,4 +196,4 @@ O projeto está publicado em [wberaldo/dose](https://github.com/wberaldo/dose), 
 - Não perturbe e políticas: https://developer.android.com/reference/android/app/NotificationManager
 - Restrições para tela cheia: https://developer.android.com/about/versions/14/behavior-changes-14
 
-Versão 1.7.2. Entrega pessoal instalável; não publicada na Play Store.
+Versão 1.7.3. Entrega pessoal instalável; não publicada na Play Store.

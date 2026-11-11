@@ -19,6 +19,12 @@ public final class MainActivity extends Activity {
   private int tab = 0;
   private String filter = "all";
   private LocalDate selected = LocalDate.now();
+  private LinearLayout contentBody;
+  private ScrollView contentScroll;
+  private int renderedTab = -1, renderGeneration;
+  private final int[] scrollPositions = new int[4];
+  private boolean restoringScroll, renderedDark;
+  private AlertDialog toneDialog;
   private final Locale pt = Locale.forLanguageTag("pt-BR");
   private boolean registered = false;
   private final BroadcastReceiver changed =
@@ -42,8 +48,13 @@ public final class MainActivity extends Activity {
     Ui.prepare(this);
     super.onCreate(state);
     if (state != null) {
-      tab = state.getInt("tab", tab);
+      int savedTab = state.getInt("tab", tab);
+      if (savedTab >= 0 && savedTab < scrollPositions.length) tab = savedTab;
       selected = LocalDate.parse(state.getString("date", LocalDate.now().toString()));
+      filter = state.getString("filter", "all");
+      int[] positions = state.getIntArray("scroll_positions");
+      if (positions != null && positions.length == scrollPositions.length)
+        for (int i = 0; i < positions.length; i++) scrollPositions[i] = Math.max(0, positions[i]);
     }
     applyTab(getIntent());
     Alerts.channels(this);
@@ -51,9 +62,12 @@ public final class MainActivity extends Activity {
 
   @Override
   protected void onSaveInstanceState(Bundle b) {
+    rememberScroll();
     super.onSaveInstanceState(b);
     b.putInt("tab", tab);
     b.putString("date", selected.toString());
+    b.putString("filter", filter);
+    b.putIntArray("scroll_positions", scrollPositions.clone());
   }
 
   @Override
@@ -66,7 +80,8 @@ public final class MainActivity extends Activity {
 
   private void applyTab(Intent intent) {
     if (intent.hasExtra("tab")) {
-      tab = intent.getIntExtra("tab", tab);
+      int requestedTab = intent.getIntExtra("tab", tab);
+      if (requestedTab >= 0 && requestedTab < scrollPositions.length) tab = requestedTab;
       intent.removeExtra("tab");
     }
   }
@@ -85,11 +100,14 @@ public final class MainActivity extends Activity {
       registered = true;
     }
     render();
+    handler.removeCallbacks(clock);
     handler.postDelayed(clock, 30000);
   }
 
   @Override
   protected void onPause() {
+    rememberScroll();
+    if (toneDialog != null) toneDialog.dismiss();
     handler.removeCallbacksAndMessages(null);
     if (registered) {
       unregisterReceiver(changed);
@@ -99,6 +117,52 @@ public final class MainActivity extends Activity {
   }
 
   private void render() {
+    rememberScroll();
+    int y = scrollPositions[tab];
+    if (contentBody == null || renderedTab != tab || renderedDark != Ui.isDark(this)) buildShell();
+    contentBody.removeAllViews();
+    switch (tab) {
+      case 0:
+        home(contentBody);
+        break;
+      case 1:
+        medicines(contentBody);
+        break;
+      case 2:
+        history(contentBody);
+        break;
+      default:
+        settings(contentBody);
+    }
+    restoreScroll(y);
+  }
+
+  private void rememberScroll() {
+    if (contentScroll != null && renderedTab >= 0 && !restoringScroll)
+      scrollPositions[renderedTab] = contentScroll.getScrollY();
+  }
+
+  private void restoreScroll(int y) {
+    ScrollView expected = contentScroll;
+    int generation = ++renderGeneration, page = tab;
+    restoringScroll = true;
+    expected.getViewTreeObserver().addOnPreDrawListener(
+        new ViewTreeObserver.OnPreDrawListener() {
+          @Override
+          public boolean onPreDraw() {
+            expected.getViewTreeObserver().removeOnPreDrawListener(this);
+            if (contentScroll == expected && renderGeneration == generation) {
+              expected.scrollTo(0, y);
+              scrollPositions[page] = expected.getScrollY();
+              restoringScroll = false;
+            }
+            return true;
+          }
+        });
+  }
+
+  private void buildShell() {
+    Ui.prepare(this);
     LinearLayout root = Ui.root(this);
     LinearLayout top = Ui.row(this);
     top.setPadding(dp(22), dp(14), dp(22), dp(8));
@@ -112,20 +176,10 @@ public final class MainActivity extends Activity {
     TextView badge = Ui.chip(this, "SEU CUIDADO DIÁRIO", Ui.LIGHT, Ui.TEAL);
     top.addView(badge);
     root.addView(top);
-    LinearLayout body = Ui.scroll(root);
-    switch (tab) {
-      case 0:
-        home(body);
-        break;
-      case 1:
-        medicines(body);
-        break;
-      case 2:
-        history(body);
-        break;
-      default:
-        settings(body);
-    }
+    contentBody = Ui.scroll(root);
+    contentScroll = (ScrollView) contentBody.getParent();
+    renderedTab = tab;
+    renderedDark = Ui.isDark(this);
     LinearLayout nav = Ui.row(this);
     nav.setBackgroundColor(Ui.SURFACE);
     nav.setPadding(dp(8), dp(7), dp(8), dp(7));
@@ -826,6 +880,7 @@ public final class MainActivity extends Activity {
               true),
           10);
     Ui.add(body, Ui.text(this, "Do seu jeito", 21, Ui.INK, true), 28);
+    option(body, "Toque do alarme", AlarmTones.label(this) + " · Toque para escolher e ouvir", this::alarmTone);
     option(
         body,
         "Som e vibração do aviso",
@@ -834,7 +889,7 @@ public final class MainActivity extends Activity {
             open(
                 new Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
                     .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName())
-                    .putExtra(Settings.EXTRA_CHANNEL_ID, Alerts.CHANNEL)));
+                    .putExtra(Settings.EXTRA_CHANNEL_ID, Alerts.channelId(this))));
     option(body, "Volume mínimo do alarme", volumeLabel(), this::volume);
     toggle(
         body, "Som do alarme", "Tocar por até 1 minuto, usando o áudio de alarmes.", "ring", true);
@@ -975,7 +1030,7 @@ public final class MainActivity extends Activity {
         body,
         Ui.text(
             this,
-            "Dose 1.7.2 • Rotina e lembretes funcionam sem internet.\n"
+            "Dose 1.7.3 • Rotina e lembretes funcionam sem internet.\n"
                 + "Os dados ficam neste aparelho. Faça backups antes de desinstalar. Cadastre"
                 + " apenas os horários da sua prescrição.",
             12,
@@ -1080,6 +1135,28 @@ public final class MainActivity extends Activity {
               render();
             })
         .show();
+  }
+
+  private void alarmTone() {
+    String[] keys = AlarmTones.keys();
+    int current = Arrays.asList(keys).indexOf(AlarmTones.key(this));
+    int[] selectedTone = {Math.max(0, current)};
+    AlarmTones.Preview preview = new AlarmTones.Preview(this);
+    toneDialog = new AlertDialog.Builder(this)
+        .setTitle("Toque do alarme · toque para ouvir")
+        .setSingleChoiceItems(AlarmTones.labels(), selectedTone[0], (dialog, which) -> {
+          selectedTone[0] = which;
+          preview.play(keys[which]);
+        })
+        .setPositiveButton("Usar toque", (dialog, which) -> {
+          Alerts.selectTone(this, keys[selectedTone[0]]);
+          CloudBackup.changed(this);
+          render();
+        })
+        .setNegativeButton("Cancelar", null)
+        .create();
+    toneDialog.setOnDismissListener(dialog -> { preview.stop(); toneDialog = null; });
+    toneDialog.show();
   }
 
   private void dndOptions() {
