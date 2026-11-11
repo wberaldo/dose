@@ -5,6 +5,7 @@ import android.database.Cursor;
 import android.database.sqlite.*;
 import java.time.*;
 import java.util.*;
+import java.util.function.ToLongFunction;
 import org.json.*;
 
 /** Device-private data. Dose snapshots keep the history meaningful after an edit. */
@@ -339,7 +340,7 @@ public final class Store extends SQLiteOpenHelper {
     SQLiteDatabase db = getWritableDatabase();
     db.beginTransaction();
     try {
-      for (Dose d : doses("status='pending' AND last_alert=0", null, "scheduled")) {
+      for (Dose d : doses("status='pending' AND last_alert=0 AND snoozed=0", null, "scheduled")) {
         String[] p = d.key.split("@");
         long newTime =
             LocalDate.parse(p[0])
@@ -461,16 +462,30 @@ public final class Store extends SQLiteOpenHelper {
   }
 
   public boolean snooze(long id, int minutes, long now) {
-    Dose d = dose(id);
-    if (d == null || !d.actionable() || d.reminderCancelled) return false;
-    long next = ScheduleRules.snoozeAt(now, d.expires, minutes);
-    ContentValues v = new ContentValues();
-    v.put("next_alert", next);
-    v.put("snoozed", 1);
-    v.put("alerts", 0);
-    return getWritableDatabase()
-            .update("doses", v, "id=? AND status='pending'", new String[] {"" + id})
-        == 1;
+    return updateSnooze(id, d -> ScheduleRules.snoozeAt(now, d.expires, minutes));
+  }
+
+  public boolean snoozeUntil(long id, long until, long now) {
+    return updateSnooze(
+        id, d -> ScheduleRules.requireSnoozeTime(Math.max(now, d.scheduled), d.expires, until));
+  }
+
+  private boolean updateSnooze(long id, ToLongFunction<Dose> nextAlert) {
+    SQLiteDatabase db = getWritableDatabase();
+    db.beginTransaction();
+    try {
+      Dose d = dose(id);
+      if (d == null || !d.actionable() || d.reminderCancelled) return false;
+      ContentValues values = new ContentValues();
+      values.put("next_alert", nextAlert.applyAsLong(d));
+      values.put("snoozed", 1);
+      values.put("alerts", 0);
+      boolean changed = db.update("doses", values, "id=?", new String[] {"" + id}) == 1;
+      db.setTransactionSuccessful();
+      return changed;
+    } finally {
+      db.endTransaction();
+    }
   }
 
   /** Cancel one medicine's calendar day, including occurrences rebuilt by later edits. */

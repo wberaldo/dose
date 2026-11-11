@@ -1,3 +1,9 @@
+# 1.7.4 — 11/11/2026
+
+- Adiciona a escolha de hora e minuto para o próximo aviso em Hoje, na tela cheia e na notificação de cada dose.
+- Mostra o dia do novo aviso e valida o horário dentro da janela da dose, inclusive após a meia-noite.
+- Persiste o novo horário no agendamento existente e preserva as ações rápidas, o estoque e os avisos das outras doses.
+
 # 1.7.3 — 10/11/2026
 
 - Adiciona Suave, Gotas, Sinos, Pulso, Digital e Clássico, além do som original, com prévia e confirmação em Alertas.

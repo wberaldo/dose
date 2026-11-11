@@ -78,6 +78,7 @@ public final class ScheduleTests {
       invalid = true;
     }
     check(invalid, "adiamento não atravessa a próxima dose");
+    snoozeTimeChecks(sp);
     m = med();
     m.start = "2026-03-01";
     m.times = "02:30";
@@ -120,5 +121,42 @@ public final class ScheduleTests {
     }
     check(invalid, "rejeitar horários inválidos");
     System.out.println("Passed " + count + " scheduling checks.");
+  }
+
+  private static void snoozeTimeChecks(ZoneId zone) {
+    LocalDate day = LocalDate.of(2026, 11, 7);
+    long now = day.atTime(23, 15, 40).atZone(zone).toInstant().toEpochMilli();
+    long expires = day.plusDays(1).atTime(0, 30).atZone(zone).toInstant().toEpochMilli();
+    check(
+        ScheduleRules.nextSnoozeTime(now, expires, LocalTime.of(23, 40), zone)
+            == day.atTime(23, 40).atZone(zone).toInstant().toEpochMilli(),
+        "horário escolhido é salvo no minuto exato, inclusive após um disparo com segundos");
+    check(
+        ScheduleRules.nextSnoozeTime(now, expires, LocalTime.of(0, 15), zone)
+            == day.plusDays(1).atTime(0, 15).atZone(zone).toInstant().toEpochMilli(),
+        "horário após meia-noite usa o dia seguinte dentro da janela da dose");
+    check(
+        ScheduleRules.nextSnoozeTime(now, expires, LocalTime.of(0, 30), zone) == 0,
+        "horário igual ao fim da janela é recusado");
+    check(
+        ScheduleRules.nextSnoozeTime(now, expires, LocalTime.of(23, 15), zone) == 0,
+        "minuto que já começou não é reagendado para fora da janela");
+    check(
+        ScheduleRules.nextSnoozeTime(expires, expires, LocalTime.of(0, 30), zone) == 0,
+        "uma dose vencida não aceita novo horário");
+    ZoneId newYork = ZoneId.of("America/New_York");
+    ZonedDateTime spring = ZonedDateTime.of(2026, 3, 8, 1, 55, 0, 0, newYork);
+    check(
+        ScheduleRules.nextSnoozeTime(
+                spring.toInstant().toEpochMilli(), spring.plusHours(2).toInstant().toEpochMilli(),
+                LocalTime.of(2, 30), newYork) == 0,
+        "horário inexistente na mudança de relógio é recusado");
+    ZonedDateTime fall = ZonedDateTime.of(2026, 11, 1, 1, 45, 0, 0, newYork);
+    check(
+        ScheduleRules.nextSnoozeTime(
+                fall.toInstant().toEpochMilli(), fall.plusHours(2).toInstant().toEpochMilli(),
+                LocalTime.of(1, 30), newYork)
+            == fall.withMinute(30).withLaterOffsetAtOverlap().toInstant().toEpochMilli(),
+        "hora repetida seleciona a primeira ocorrência ainda futura");
   }
 }

@@ -2,7 +2,9 @@
 
 Aplicativo Android de uso pessoal para organizar medicamentos, configurar lembretes e registrar tomadas. Interface em português, dados locais e opções de backup por arquivo ou Google Drive.
 
-Versão do aplicativo: **1.7.3**. Pacote: `br.com.well.dose`. Ícone com uma cápsula branca e verde, sem estrela.
+Versão do aplicativo: **1.7.4**. Pacote: `br.com.well.dose`. Ícone com uma cápsula branca e verde, sem estrela.
+
+Use **Adiar até um horário** na tela do alarme ou **Adiar → Escolher horário…** em **Hoje** para reagendar o aviso de uma dose no minuto escolhido.
 
 Em **Alertas → Toque do alarme**, escolha entre sete opções e ouça a prévia antes de salvar. A atualização periódica preserva a rolagem, inclusive ao voltar a uma aba ou recriar a tela.
 

@@ -176,6 +176,17 @@ public final class AlarmEngine {
     }
   }
 
+  public static boolean snoozeUntil(Context c, long id, long until) {
+    synchronized (LOCK) {
+      if (!Store.get(c).snoozeUntil(id, until, System.currentTimeMillis())) return false;
+      Alerts.cancel(c, id);
+      RingingService.stopCancelledReminders(c);
+      refresh(c);
+      c.sendBroadcast(new Intent("br.com.well.dose.CHANGED").setPackage(c.getPackageName()));
+      return true;
+    }
+  }
+
   public static void cancelStale(Context c) {
     NotificationManager nm = (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
     for (android.service.notification.StatusBarNotification n : nm.getActiveNotifications()) {

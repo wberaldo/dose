@@ -12,6 +12,7 @@ import java.util.*;
 public final class AlarmActivity extends Activity {
   private long requested;
   private boolean registered;
+  private AlertDialog snoozePicker;
   private final BroadcastReceiver changed =
       new BroadcastReceiver() {
         public void onReceive(Context c, Intent i) {
@@ -63,6 +64,12 @@ public final class AlarmActivity extends Activity {
       registered = false;
     }
     super.onPause();
+  }
+
+  @Override
+  protected void onDestroy() {
+    if (snoozePicker != null) snoozePicker.dismiss();
+    super.onDestroy();
   }
 
   private List<Dose> pending() {
@@ -154,6 +161,7 @@ public final class AlarmActivity extends Activity {
     }
     List<Dose> list = pending();
     if (list.isEmpty()) {
+      getIntent().setAction(null);
       Ui.add(
           body,
           Ui.text(this, "Tudo certo. Não há doses aguardando confirmação.", 17, Ui.MUTED, false),
@@ -255,13 +263,38 @@ public final class AlarmActivity extends Activity {
         9);
     TextView silence = Ui.text(this, "Silenciar apenas o som", 13, Ui.MUTED, true);
     silence.setGravity(Gravity.CENTER);
-    silence.setMinHeight(dp(44));
+    silence.setMinHeight(dp(48));
     silence.setOnClickListener(v -> RingingService.stopSound(this));
-    Ui.add(controls, silence, 2);
+    TextView chooseTime = Ui.text(this, "Adiar até um horário", 14, Ui.TEAL, true);
+    chooseTime.setGravity(Gravity.CENTER);
+    chooseTime.setMinHeight(dp(48));
+    chooseTime.setOnClickListener(v -> showSnoozeTime(selected));
+    LinearLayout secondary = Ui.row(this);
+    secondary.addView(chooseTime, new LinearLayout.LayoutParams(0, -2, 1));
+    secondary.addView(silence, new LinearLayout.LayoutParams(0, -2, 1));
+    Ui.add(controls, secondary, 2);
+    if (Alerts.CHOOSE_SNOOZE_TIME.equals(getIntent().getAction())) {
+      getIntent().setAction(null);
+      if (selected.id == requested) showSnoozeTime(selected);
+      else Ui.toast(this, "Este lembrete não está mais disponível.");
+    }
+  }
+
+  private void showSnoozeTime(Dose dose) {
+    if (snoozePicker != null) snoozePicker.dismiss();
+    AlertDialog dialog = SnoozeTimePicker.show(this, dose, this::afterAction);
+    snoozePicker = dialog;
+    dialog.setOnDismissListener(ignored -> {
+      if (snoozePicker == dialog) snoozePicker = null;
+    });
   }
 
   private void act(long id, String action) {
     AlarmEngine.action(this, id, action);
+    afterAction();
+  }
+
+  private void afterAction() {
     requested = 0;
     if (pending().isEmpty()) finish();
     else render();

@@ -407,7 +407,7 @@ public final class MainActivity extends Activity {
           bg = Ui.LINE;
           color = Ui.MUTED;
         } else if (d.snoozed) {
-          status = "Adiado · " + time(d.nextAlert);
+          status = "Adiado · " + SnoozeTimePicker.label(d.nextAlert);
         } else if (d.scheduled < System.currentTimeMillis()) {
           status = "Aguardando você";
           bg = Ui.WARNING;
@@ -442,7 +442,9 @@ public final class MainActivity extends Activity {
       if (canAdjustReminder) {
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(0, -2, 1);
         sp.leftMargin = dp(9);
-        actions.addView(Ui.button(this, "Adiar", false, () -> snooze(d)), sp);
+        TextView snooze = Ui.button(this, "Adiar", false, () -> snooze(d));
+        snooze.setContentDescription("Adiar " + d.name + ", dose prevista para " + time(d.scheduled));
+        actions.addView(snooze, sp);
       }
       Ui.add(card, actions, 17);
     }
@@ -1030,7 +1032,7 @@ public final class MainActivity extends Activity {
         body,
         Ui.text(
             this,
-            "Dose 1.7.3 • Rotina e lembretes funcionam sem internet.\n"
+            "Dose 1.7.4 • Rotina e lembretes funcionam sem internet.\n"
                 + "Os dados ficam neste aparelho. Faça backups antes de desinstalar. Cadastre"
                 + " apenas os horários da sua prescrição.",
             12,
@@ -1299,8 +1301,12 @@ public final class MainActivity extends Activity {
     new AlertDialog.Builder(this)
         .setTitle("Lembrar novamente em…")
         .setItems(
-            new String[] {"5 minutos", "10 minutos", "15 minutos", "30 minutos"},
+            new String[] {"5 minutos", "10 minutos", "15 minutos", "30 minutos", "Escolher horário…"},
             (a, index) -> {
+              if (index == values.length) {
+                SnoozeTimePicker.show(this, d, this::render);
+                return;
+              }
               try {
                 Store.get(this).snooze(d.id, values[index], System.currentTimeMillis());
                 Alerts.cancel(this, d.id);

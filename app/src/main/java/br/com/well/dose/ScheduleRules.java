@@ -64,10 +64,31 @@ public final class ScheduleRules {
   }
 
   public static long snoozeAt(long now, long expires, int minutes) {
-    long next = now + minutes * 60_000L;
+    return requireSnoozeTime(now, expires, now + minutes * 60_000L);
+  }
+
+  static long requireSnoozeTime(long after, long expires, long next) {
+    if (next <= after)
+      throw new IllegalArgumentException("Escolha um horário futuro, após o horário da dose.");
     if (next >= expires)
       throw new IllegalArgumentException("Esse adiamento ultrapassa a janela deste lembrete.");
     return next;
+  }
+
+  /** Finds the first occurrence of the chosen local time inside the reminder window. */
+  public static long nextSnoozeTime(long after, long expires, LocalTime time, ZoneId zone) {
+    if (expires <= after) return 0;
+    LocalDate today = Instant.ofEpochMilli(after).atZone(zone).toLocalDate();
+    LocalDate lastDay = Instant.ofEpochMilli(expires - 1).atZone(zone).toLocalDate();
+    for (LocalDate day = today; !day.isAfter(lastDay); day = day.plusDays(1)) {
+      LocalDateTime local = day.atTime(time);
+      // A skipped clock time has no offset; an overlap lists the earlier occurrence first.
+      for (ZoneOffset offset : zone.getRules().getValidOffsets(local)) {
+        long next = local.toInstant(offset).toEpochMilli();
+        if (next > after && next < expires) return next;
+      }
+    }
+    return 0;
   }
 
   public static String number(double d) {

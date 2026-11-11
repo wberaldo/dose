@@ -4,6 +4,7 @@ import android.app.*;
 import android.content.*;
 import android.os.*;
 import android.view.*;
+import android.view.inspector.WindowInspector;
 import android.widget.*;
 import java.time.*;
 import java.util.*;
@@ -41,6 +42,7 @@ public final class DeviceTests extends Instrumentation {
       else if ("appearance_migration".equals(mode)) appearanceMigration();
       else if ("appearance".equals(mode)) appearanceChecks();
       else if ("alarms".equals(mode)) alarmChecks();
+      else if ("snooze_time".equals(mode)) snoozeTimeChecks();
       else if ("today".equals(mode)) todayChecks();
       else if ("cancel_day".equals(mode)) cancelDayChecks();
       else if ("drive_seed".equals(mode)) driveSeed();
@@ -335,7 +337,7 @@ public final class DeviceTests extends Instrumentation {
             .findFirst()
             .get()
             .getNotification();
-    check(notification.actions.length == 2, "notificação tem os botões Tomei e Adiar");
+    check(notification.actions.length == 3, "notificação tem Tomei, Adiar e Adiar até…");
     android.media.MediaPlayer sound = android.media.MediaPlayer.create(c, R.raw.dose_alarm);
     check(sound != null, "som próprio do aplicativo carregado e preparado pelo Android");
     if (sound != null) sound.release();
@@ -935,7 +937,7 @@ public final class DeviceTests extends Instrumentation {
         "reimportação mantém a aparência personalizada do cadastro existente");
     Notification notice = Alerts.notification(c, db.dose(pending.id), false);
     check(
-        notice.getLargeIcon() != null && notice.actions.length == 2,
+        notice.getLargeIcon() != null && notice.actions.length == 3,
         "notificação mantém ações e inclui a imagem colorida do medicamento");
     check(
         notice.publicVersion != null && notice.publicVersion.getLargeIcon() == null,
@@ -1242,9 +1244,9 @@ public final class DeviceTests extends Instrumentation {
         check(
             notices() == 1
                 && noticeExists(d.id)
-                && posted((int) d.id).actions.length == 2
+                && posted((int) d.id).actions.length == 3
                 && !alarmPlaying(),
-            "parar o som mantém o único lembrete e seus dois botões no modo " + mode);
+            "parar o som mantém o único lembrete e suas ações no modo " + mode);
         check(
             audio.getStreamVolume(android.media.AudioManager.STREAM_ALARM) == modeLow,
             "fim do som restaura o volume anterior no modo " + mode);
@@ -1586,6 +1588,115 @@ public final class DeviceTests extends Instrumentation {
   private boolean hasText(Activity a, String value) {
     return views(a.getWindow().getDecorView()).stream()
         .anyMatch(v -> v instanceof TextView && ((TextView) v).getText().toString().equals(value));
+  }
+
+  private List<View> visibleWindows() {
+    List<View> result = new ArrayList<>();
+    for (View root : WindowInspector.getGlobalWindowViews())
+      for (View v : views(root)) if (v.isShown()) result.add(v);
+    return result;
+  }
+
+  private View visibleText(String text) {
+    return visibleWindows().stream()
+        .filter(v -> v instanceof TextView && text.contentEquals(((TextView) v).getText()))
+        .findFirst().orElseThrow(() -> new AssertionError("Texto ausente: " + text));
+  }
+
+  private void setSnoozePicker(long at) {
+    LocalTime time = Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault()).toLocalTime();
+    TimePicker picker = (TimePicker) visibleWindows().stream().filter(v -> v instanceof TimePicker)
+        .findFirst().orElseThrow(() -> new AssertionError("Seletor de horário ausente"));
+    picker.setHour(time.getHour());
+    picker.setMinute(time.getMinute());
+  }
+
+  private void snoozeTimeChecks() throws Exception {
+    clear();
+    Prefs.get(c).edit().putBoolean("alarm_profile_130", true).putInt("repeat_count", 0)
+        .putBoolean("ring", false).putBoolean("private", false).commit();
+    Medication firstMed = medication("Exemplo com horário escolhido");
+    Medication secondMed = medication("Outro exemplo no mesmo horário");
+    firstMed.times = secondMed.times = LocalTime.now().plusHours(3).format(ScheduleRules.CLOCK);
+    db.save(firstMed, System.currentTimeMillis());
+    db.save(secondMed, System.currentTimeMillis());
+    Dose first = alarmDue(firstMed), second = alarmDue(secondMed);
+    db.claimDue(c, System.currentTimeMillis());
+    Alerts.show(c, db.dose(first.id), false);
+    Alerts.show(c, db.dose(second.id), false);
+    await(() -> noticeExists(first.id) && noticeExists(second.id));
+    check("Adiar até…".contentEquals(posted((int) second.id).actions[2].title),
+        "notificação real oferece o seletor além das ações rápidas");
+    if (Build.VERSION.SDK_INT >= 31) {
+      Prefs.get(c).edit().putBoolean("private", true).commit();
+      check(Alerts.notification(c, second, false).actions[2].isAuthenticationRequired(),
+          "seletor na notificação respeita o modo privado na tela bloqueada");
+      Prefs.get(c).edit().putBoolean("private", false).commit();
+    }
+
+    Activity main = startActivitySync(new Intent(c, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+    runOnMainSync(() -> {
+      View take = main.getWindow().getDecorView().findViewWithTag("take:" + first.id);
+      views((View) take.getParent()).stream()
+          .filter(v -> v instanceof TextView && "Adiar".contentEquals(((TextView) v).getText()))
+          .findFirst().orElseThrow(() -> new AssertionError("Adiar ausente em Hoje")).performClick();
+    });
+    waitForIdleSync();
+    runOnMainSync(() -> {
+      ListView menu = (ListView) visibleWindows().stream().filter(v -> v instanceof ListView)
+          .findFirst().orElseThrow(() -> new AssertionError("Opções de adiamento ausentes"));
+      int last = menu.getCount() - 1;
+      check("Escolher horário…".equals(menu.getItemAtPosition(last)), "Hoje oferece escolher horário");
+      menu.performItemClick(menu.getChildAt(last), last, menu.getItemIdAtPosition(last));
+    });
+    waitForIdleSync();
+    runOnMainSync(() -> {
+      setSnoozePicker(db.dose(first.id).expires + 60_000L);
+      check(!visibleText("Adiar lembrete").isEnabled(), "seletor bloqueia horário fora da janela");
+      visibleText("Cancelar").performClick();
+    });
+    check(!db.dose(first.id).snoozed && noticeExists(first.id), "cancelar mantém o aviso atual");
+    runOnMainSync(main::finish);
+
+    Activity alarm = startActivitySync(Alerts.openIntent(c, first.id));
+    long later = (System.currentTimeMillis() / 60_000L + 25) * 60_000L;
+    runOnMainSync(() -> visibleText("Adiar até um horário").performClick());
+    waitForIdleSync();
+    runOnMainSync(() -> {
+      setSnoozePicker(later);
+      check(visibleText("Próximo aviso " + SnoozeTimePicker.label(later) + ".").isShown(),
+          "seletor mostra o horário que será gravado");
+      visibleText("Adiar lembrete").performClick();
+    });
+    await(() -> db.dose(first.id).snoozed && !noticeExists(first.id));
+    check(db.dose(first.id).nextAlert == later && db.dose(first.id).scheduled == first.scheduled,
+        "tela cheia adia no minuto escolhido e preserva o horário previsto da dose");
+    check(db.medication(first.medId).stock == 30 && noticeExists(second.id) && !db.dose(second.id).snoozed,
+        "adiar só afeta a dose selecionada e preserva seu estoque");
+
+    posted((int) second.id).actions[2].actionIntent.send();
+    waitForIdleSync();
+    long next = (System.currentTimeMillis() / 60_000L + 2) * 60_000L;
+    runOnMainSync(() -> {
+      setSnoozePicker(next);
+      visibleText("Adiar lembrete").performClick();
+    });
+    await(() -> db.dose(second.id).snoozed && !noticeExists(second.id));
+    check(db.dose(second.id).nextAlert == next && db.dose(first.id).nextAlert == later,
+        "ação da notificação abre o seletor da dose correta");
+    db.close();
+    new RestoreReceiver().onReceive(c, new Intent(Intent.ACTION_BOOT_COMPLETED));
+    check(db.dose(second.id).nextAlert == next && Prefs.get(c).getLong("next_alarm", 0) == next,
+        "hora escolhida persiste e volta para o agendamento do Android ao reabrir o banco");
+    check(!noticeExists(second.id), "aviso adiado fica recolhido até o novo horário");
+
+    SystemClock.sleep(Math.max(0, next - System.currentTimeMillis() - 1000));
+    await(() -> db.dose(second.id).lastAlert >= next && noticeExists(second.id));
+    check(!db.dose(second.id).snoozed && notices() == 1 && !noticeExists(first.id),
+        "Android entrega só a dose adiada no minuto escolhido");
+    runOnMainSync(alarm::finish);
+    clear();
+    AlarmEngine.refresh(c);
   }
 
   private void todayChecks() throws Exception {

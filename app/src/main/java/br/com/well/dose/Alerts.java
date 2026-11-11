@@ -11,6 +11,7 @@ import java.time.*;
 
 public final class Alerts {
   public static final String CHANNEL = "dose_alarms_v1", INFO = "dose_status_v1";
+  static final String CHOOSE_SNOOZE_TIME = "br.com.well.dose.CHOOSE_SNOOZE_TIME";
   public static final int SERVICE_ID = 900000001, TEST_ID = 900000002;
 
   public static String channelId(Context c) {
@@ -203,6 +204,16 @@ public final class Alerts {
                 "Adiar " + Prefs.snooze(c) + " min",
                 action(c, id, test ? "SNOOZE_TEST" : "SNOOZE"))
             .build());
+    if (!test) {
+      PendingIntent chooseTime = PendingIntent.getActivity(
+          c, 0, openIntent(c, id).setAction(CHOOSE_SNOOZE_TIME),
+          PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE, options);
+      Notification.Action.Builder customSnooze =
+          new Notification.Action.Builder(null, "Adiar até…", chooseTime);
+      if (Build.VERSION.SDK_INT >= 31 && Prefs.privateAlarm(c))
+        customSnooze.setAuthenticationRequired(true);
+      b.addAction(customSnooze.build());
+    }
     if (Prefs.fullscreen(c) && fullScreenAllowed(c)) b.setFullScreenIntent(content, true);
     if (Build.VERSION.SDK_INT >= 31)
       b.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE);
