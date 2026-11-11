@@ -27,7 +27,7 @@ try:
     ad('shell','wm','size','900x2000');ad('shell','wm','density','360')
     ad('shell','settings','put','system','screen_off_timeout','600000')
     ad('shell','cmd','alarm','set-timezone','America/Sao_Paulo',check=False)
-    print(ad('install','--no-incremental','-r',root/'build/Dose-1.7.4.apk'),flush=True)
+    print(ad('install','--no-incremental','-r',root/'build/Dose-1.7.5.apk'),flush=True)
     print(ad('install','--no-incremental','-r','-t',root/'build/device-tests/dose-tests.apk'),flush=True)
     ad('shell','pm','grant','br.com.well.dose','android.permission.POST_NOTIFICATIONS')
     ad('shell','appops','set','br.com.well.dose','SCHEDULE_EXACT_ALARM','allow')

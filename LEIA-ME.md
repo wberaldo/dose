@@ -4,11 +4,11 @@ Aplicativo nativo em português para organizar medicamentos e lembrar os horári
 
 ## Atualizar de versões anteriores
 
-Abra o APK 1.7.4 e escolha **Atualizar** para preservar seus medicamentos, histórico, estoque e preferências. A versão inclui a escolha de um horário para adiar o aviso de uma dose.
+Abra o APK 1.7.5 e escolha **Atualizar** para preservar seus medicamentos, histórico, estoque e preferências. A aba Hoje permite adiar doses pendentes antes de o alarme tocar.
 
 ## Instalar e começar
 
-1. No celular, abra `Dose-1.7.4.apk` e siga a instalação. Se o Android solicitar, autorize a instalação de apps pela fonte usada para abrir o arquivo.
+1. No celular, abra `Dose-1.7.5.apk` e siga a instalação. Se o Android solicitar, autorize a instalação de apps pela fonte usada para abrir o arquivo.
 2. Abra o Dose e toque em **Cadastrar medicamento** ou **Remédios → Novo medicamento**.
 3. Informe nome, concentração se desejar, quantidade por dose, unidade, horários, dias da semana e período. Use os horários da sua prescrição.
 4. Na aba **Alertas**, autorize **Notificações**, **Alarmes e lembretes**, **Tela cheia na tela bloqueada** e **Tela cheia com o celular em uso**. Esta última abre a autorização do Android para aparecer sobre outros apps. Se usar Não perturbe, permita alarmes no modo ativo. Confira também a configuração de bateria.
@@ -20,7 +20,9 @@ Os alarmes começam nos próximos horários após cadastrar ou importar. Um hor�
 
 ## Adiar até um horário
 
-Em **Hoje**, toque em **Adiar → Escolher horário…**. Na tela cheia do alarme, toque em **Adiar até um horário**. Na notificação expandida, use **Adiar até…**.
+Em **Hoje**, toque em **Adiar → Escolher horário…** em uma dose pendente de hoje com lembrete ativo. O botão fica disponível desde o começo do dia. Na tela cheia do alarme, toque em **Adiar até um horário**. Na notificação expandida, use **Adiar até…**.
+
+Ao escolher um adiamento em minutos antes da dose, o Dose soma esse intervalo ao horário previsto. Uma dose das 20h adiada em 10 minutos terá o próximo aviso às 20h10.
 
 Escolha a hora e o minuto e toque em **Adiar lembrete**. O seletor mostra o dia e o horário do próximo aviso, inclusive quando cair depois da meia-noite. O adiamento vale para a dose selecionada e preserva o horário previsto e o estoque. O horário escolhido deve ser futuro e anterior à próxima dose do mesmo medicamento ou a seis horas após o horário previsto, o que vier primeiro.
 
@@ -158,7 +160,7 @@ sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0' 'platform-tools'
 python3 tools/build.py --sdk /caminho/absoluto/android-sdk --test
 ```
 
-Requer JDK 17 ou mais recente com compilador, Python 3 e o SDK oficial. O wrapper baixa o Gradle na primeira execução; o SDK Google e as dependências são obtidos dos repositórios oficiais. O APK assinado sai em `build/Dose-1.7.4.apk`.
+Requer JDK 17 ou mais recente com compilador, Python 3 e o SDK oficial. O wrapper baixa o Gradle na primeira execução, e o SDK Google e as dependências são obtidos dos repositórios oficiais. O APK assinado sai em `build/Dose-1.7.5.apk`.
 
 `signing/` contém a chave pessoal usada nesta versão e sua configuração local. Guarde essa pasta para assinar futuras atualizações compatíveis com o APK instalado. A chave e sua senha pertencem à entrega pessoal; a pasta `signing/` não é versionada. Guarde a chave para gerar atualizações da instalação existente. A compilação usa a chave pessoal quando a pasta signing/ está presente. Sem a chave original, um novo APK não pode atualizar a instalação existente.
 
@@ -202,4 +204,4 @@ O projeto está publicado em [wberaldo/dose](https://github.com/wberaldo/dose), 
 - Não perturbe e políticas: https://developer.android.com/reference/android/app/NotificationManager
 - Restrições para tela cheia: https://developer.android.com/about/versions/14/behavior-changes-14
 
-Versão 1.7.4. Entrega pessoal instalável.
+Versão 1.7.5. Entrega pessoal instalável.

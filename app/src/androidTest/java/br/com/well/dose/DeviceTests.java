@@ -1611,6 +1611,29 @@ public final class DeviceTests extends Instrumentation {
     picker.setMinute(time.getMinute());
   }
 
+  private void chooseAgendaSnooze(Activity main, long doseId, String option) {
+    runOnMainSync(() -> {
+      View take = main.getWindow().getDecorView().findViewWithTag("take:" + doseId);
+      views((View) take.getParent()).stream()
+          .filter(v -> v instanceof TextView && "Adiar".contentEquals(((TextView) v).getText()))
+          .findFirst().orElseThrow(() -> new AssertionError("Adiar ausente em Hoje")).performClick();
+    });
+    waitForIdleSync();
+    runOnMainSync(() -> {
+      ListView menu = (ListView) visibleWindows().stream().filter(v -> v instanceof ListView)
+          .findFirst().orElseThrow(() -> new AssertionError("Opções de adiamento ausentes"));
+      for (int index = 0; index < menu.getCount(); index++) {
+        if (option.equals(menu.getItemAtPosition(index))) {
+          menu.performItemClick(
+              menu.getChildAt(index - menu.getFirstVisiblePosition()), index, menu.getItemIdAtPosition(index));
+          return;
+        }
+      }
+      throw new AssertionError("Opção de adiamento ausente: " + option);
+    });
+    waitForIdleSync();
+  }
+
   private void snoozeTimeChecks() throws Exception {
     clear();
     Prefs.get(c).edit().putBoolean("alarm_profile_130", true).putInt("repeat_count", 0)
@@ -1635,21 +1658,7 @@ public final class DeviceTests extends Instrumentation {
     }
 
     Activity main = startActivitySync(new Intent(c, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-    runOnMainSync(() -> {
-      View take = main.getWindow().getDecorView().findViewWithTag("take:" + first.id);
-      views((View) take.getParent()).stream()
-          .filter(v -> v instanceof TextView && "Adiar".contentEquals(((TextView) v).getText()))
-          .findFirst().orElseThrow(() -> new AssertionError("Adiar ausente em Hoje")).performClick();
-    });
-    waitForIdleSync();
-    runOnMainSync(() -> {
-      ListView menu = (ListView) visibleWindows().stream().filter(v -> v instanceof ListView)
-          .findFirst().orElseThrow(() -> new AssertionError("Opções de adiamento ausentes"));
-      int last = menu.getCount() - 1;
-      check("Escolher horário…".equals(menu.getItemAtPosition(last)), "Hoje oferece escolher horário");
-      menu.performItemClick(menu.getChildAt(last), last, menu.getItemIdAtPosition(last));
-    });
-    waitForIdleSync();
+    chooseAgendaSnooze(main, first.id, "Escolher horário…");
     runOnMainSync(() -> {
       setSnoozePicker(db.dose(first.id).expires + 60_000L);
       check(!visibleText("Adiar lembrete").isEnabled(), "seletor bloqueia horário fora da janela");
@@ -1723,7 +1732,7 @@ public final class DeviceTests extends Instrumentation {
     values.put("expires", earlyAt + 3600000);
     db.getWritableDatabase().update("doses", values, "id=?", new String[] {"" + early.id});
     values.put("scheduled", now - 60000);
-    values.put("next_alert", now + 300000);
+    values.put("next_alert", 0L);
     values.put("last_alert", now - 1000);
     values.put("expires", now + 3600000);
     db.getWritableDatabase().update("doses", values, "id=?", new String[] {"" + due.id});
@@ -1742,6 +1751,25 @@ public final class DeviceTests extends Instrumentation {
                 main.getWindow().getDecorView().findViewWithTag("take:" + due.id) != null,
                 "dose pendente também pode ser confirmada na aba Hoje");
           });
+      chooseAgendaSnooze(main, early.id, "10 minutos");
+      await(() -> db.dose(early.id).snoozed);
+      check(db.dose(early.id).nextAlert == earlyAt + 600_000L,
+          "Hoje oferece Adiar com antecedência e soma os minutos ao horário previsto");
+      chooseAgendaSnooze(main, early.id, "Escolher horário…");
+      long chosen = (earlyAt / 60_000L + 20) * 60_000L;
+      runOnMainSync(() -> {
+        setSnoozePicker(chosen);
+        visibleText("Adiar lembrete").performClick();
+      });
+      await(() -> db.dose(early.id).nextAlert == chosen);
+      check(db.dose(early.id).scheduled == earlyAt && db.dose(due.id).nextAlert == 0,
+          "horário escolhido com antecedência afeta somente o aviso da dose selecionada");
+      runOnMainSync(() -> AlarmEngine.action(c, early.id, "TAKE"));
+      waitForIdleSync();
+      runOnMainSync(() -> check(hasText(main, "Tomado")
+              && main.getWindow().getDecorView().findViewWithTag("take:" + early.id) == null
+              && db.dose(early.id).nextAlert == 0,
+          "ao registrar a tomada, Hoje encerra o aviso adiado e oculta as ações da dose"));
       String tomorrow =
           LocalDate.now()
               .plusDays(1)

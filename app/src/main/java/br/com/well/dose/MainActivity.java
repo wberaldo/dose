@@ -429,17 +429,15 @@ public final class MainActivity extends Activity {
     if (!d.notes.isEmpty()) Ui.add(card, Ui.text(this, d.notes, 13, Ui.MUTED, false), 12);
     LocalDate doseDate =
         Instant.ofEpochMilli(d.scheduled).atZone(ZoneId.systemDefault()).toLocalDate();
-    boolean canAdjustReminder =
-        !d.reminderCancelled
-            && !doseDate.isAfter(LocalDate.now())
-            && d.scheduled <= System.currentTimeMillis() + 300000;
-    if (d.actionable() && !doseDate.isAfter(LocalDate.now())) {
+    boolean canTake = d.actionable() && !doseDate.isAfter(LocalDate.now());
+    boolean canSnooze = canTake && !d.reminderCancelled;
+    if (canTake) {
       LinearLayout actions = Ui.row(this);
       TextView take = Ui.button(this, "✓  Tomei", true, () -> take(d));
       take.setTag("take:" + d.id);
       take.setContentDescription("Tomei " + d.name + ", dose prevista para " + time(d.scheduled));
       actions.addView(take, new LinearLayout.LayoutParams(0, -2, 1));
-      if (canAdjustReminder) {
+      if (canSnooze) {
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(0, -2, 1);
         sp.leftMargin = dp(9);
         TextView snooze = Ui.button(this, "Adiar", false, () -> snooze(d));
@@ -448,7 +446,7 @@ public final class MainActivity extends Activity {
       }
       Ui.add(card, actions, 17);
     }
-    if (d.actionable() && canAdjustReminder) {
+    if (canSnooze && d.scheduled <= System.currentTimeMillis() + 300_000L) {
       TextView skip = Ui.text(this, "Pular esta dose", 12, Ui.MUTED, false);
       skip.setPadding(0, dp(16), 0, dp(5));
       skip.setMinHeight(dp(44));
@@ -1032,7 +1030,7 @@ public final class MainActivity extends Activity {
         body,
         Ui.text(
             this,
-            "Dose 1.7.4 • Rotina e lembretes funcionam sem internet.\n"
+            "Dose 1.7.5 • Rotina e lembretes funcionam sem internet.\n"
                 + "Os dados ficam neste aparelho. Faça backups antes de desinstalar. Cadastre"
                 + " apenas os horários da sua prescrição.",
             12,
@@ -1298,8 +1296,11 @@ public final class MainActivity extends Activity {
 
   private void snooze(Dose d) {
     int[] values = {5, 10, 15, 30};
+    String title = d.scheduled > System.currentTimeMillis()
+        ? "Adiar a partir de " + time(d.scheduled)
+        : "Lembrar novamente em…";
     new AlertDialog.Builder(this)
-        .setTitle("Lembrar novamente em…")
+        .setTitle(title)
         .setItems(
             new String[] {"5 minutos", "10 minutos", "15 minutos", "30 minutos", "Escolher horário…"},
             (a, index) -> {
@@ -1308,11 +1309,10 @@ public final class MainActivity extends Activity {
                 return;
               }
               try {
-                Store.get(this).snooze(d.id, values[index], System.currentTimeMillis());
-                Alerts.cancel(this, d.id);
-                RingingService.stopSound(this);
-                AlarmEngine.refresh(this);
-                render();
+                long from = Math.max(System.currentTimeMillis(), d.scheduled);
+                long until = from + values[index] * 60_000L;
+                if (AlarmEngine.snoozeUntil(this, d.id, until)) render();
+                else Ui.toast(this, "Este lembrete não está mais disponível.");
               } catch (IllegalArgumentException e) {
                 Ui.toast(this, e.getMessage());
               }

@@ -1,3 +1,8 @@
+# 1.7.5 — 11/11/2026
+
+- Disponibiliza Adiar desde o início do dia para doses pendentes de hoje com lembrete ativo.
+- Calcula os adiamentos rápidos feitos com antecedência a partir do horário previsto da dose.
+
 # 1.7.4 — 11/11/2026
 
 - Adiciona a escolha de hora e minuto para o próximo aviso em Hoje, na tela cheia e na notificação de cada dose.
