@@ -10,6 +10,13 @@ import org.json.*;
 
 /** Device-private data. Dose snapshots keep the history meaningful after an edit. */
 public final class Store extends SQLiteOpenHelper {
+  static final int BACKUP_VERSION = 5;
+  private static final String REMINDER_MUTED =
+      "(EXISTS(SELECT 1 FROM dose_mutes m WHERE m.med_id=doses.med_id"
+          + " AND m.local_key=doses.local_key)"
+          + " OR EXISTS(SELECT 1 FROM reminder_mutes m WHERE m.med_id=doses.med_id"
+          + " AND m.day=substr(doses.local_key,1,10)))";
+
   private static Store instance;
 
   public static synchronized Store get(Context c) {
@@ -18,7 +25,7 @@ public final class Store extends SQLiteOpenHelper {
   }
 
   private Store(Context c) {
-    super(c, "dose.db", null, 4);
+    super(c, "dose.db", null, 5);
   }
 
   @Override
@@ -50,6 +57,7 @@ public final class Store extends SQLiteOpenHelper {
     db.execSQL("CREATE INDEX dose_med_schedule ON doses(med_id,scheduled)");
     createImportTables(db);
     createReminderMutes(db);
+    createDoseMutes(db);
   }
 
   @Override
@@ -68,12 +76,19 @@ public final class Store extends SQLiteOpenHelper {
       }
     }
     if (old < 4) createReminderMutes(db);
+    if (old < 5) createDoseMutes(db);
   }
 
   private void createReminderMutes(SQLiteDatabase db) {
     db.execSQL(
         "CREATE TABLE reminder_mutes(med_id INTEGER NOT NULL REFERENCES meds(id),"
             + "day TEXT NOT NULL,PRIMARY KEY(med_id,day))");
+  }
+
+  private void createDoseMutes(SQLiteDatabase db) {
+    db.execSQL(
+        "CREATE TABLE dose_mutes(med_id INTEGER NOT NULL REFERENCES meds(id),"
+            + "local_key TEXT NOT NULL,PRIMARY KEY(med_id,local_key))");
   }
 
   private void createImportTables(SQLiteDatabase db) {
@@ -264,8 +279,7 @@ public final class Store extends SQLiteOpenHelper {
   public List<Dose> doses(String where, String[] args, String order) {
     List<Dose> out = new ArrayList<>();
     String sql =
-        "SELECT doses.*,EXISTS(SELECT 1 FROM reminder_mutes m WHERE m.med_id=doses.med_id"
-            + " AND m.day=substr(doses.local_key,1,10)) AS reminder_cancelled FROM doses"
+        "SELECT doses.*," + REMINDER_MUTED + " AS reminder_cancelled FROM doses"
             + (where == null ? "" : " WHERE " + where)
             + (order == null ? "" : " ORDER BY " + order);
     try (Cursor c = getReadableDatabase().rawQuery(sql, args)) {
@@ -327,9 +341,8 @@ public final class Store extends SQLiteOpenHelper {
           "UPDATE doses SET status='missed',next_alert=0 WHERE status='pending' AND expires<=?",
           new Object[] {now});
       db.execSQL(
-          "UPDATE doses SET next_alert=0,snoozed=0 WHERE status='pending' AND EXISTS"
-              + " (SELECT 1 FROM reminder_mutes m WHERE m.med_id=doses.med_id"
-              + " AND m.day=substr(doses.local_key,1,10))");
+          "UPDATE doses SET next_alert=0,snoozed=0 WHERE status='pending'"
+              + " AND (next_alert<>0 OR snoozed<>0) AND " + REMINDER_MUTED);
       db.setTransactionSuccessful();
     } finally {
       db.endTransaction();
@@ -488,24 +501,23 @@ public final class Store extends SQLiteOpenHelper {
     }
   }
 
-  /** Cancel one medicine's calendar day, including occurrences rebuilt by later edits. */
-  public void cancelReminders(long medId, LocalDate day) {
+  /** The calendar key keeps this cancellation attached to the dose when its row is rebuilt. */
+  public boolean cancelReminder(long id) {
     SQLiteDatabase db = getWritableDatabase();
     db.beginTransaction();
     try {
+      Dose dose = dose(id);
+      if (dose == null || !dose.actionable() || dose.reminderCancelled) return false;
       ContentValues mute = new ContentValues();
-      mute.put("med_id", medId);
-      mute.put("day", day.toString());
-      db.insertWithOnConflict("reminder_mutes", null, mute, SQLiteDatabase.CONFLICT_IGNORE);
+      mute.put("med_id", dose.medId);
+      mute.put("local_key", dose.key);
+      db.insertOrThrow("dose_mutes", null, mute);
       ContentValues values = new ContentValues();
       values.put("next_alert", 0);
       values.put("snoozed", 0);
-      db.update(
-          "doses",
-          values,
-          "med_id=? AND substr(local_key,1,10)=? AND status='pending'",
-          new String[] {"" + medId, day.toString()});
+      db.update("doses", values, "id=?", new String[] {"" + id});
       db.setTransactionSuccessful();
+      return true;
     } finally {
       db.endTransaction();
     }
@@ -525,7 +537,7 @@ public final class Store extends SQLiteOpenHelper {
     try {
       JSONObject root = new JSONObject();
       root.put("format", "dose-backup");
-      root.put("version", 4);
+      root.put("version", BACKUP_VERSION);
       root.put("exported_at", System.currentTimeMillis());
       root.put("zone", ZoneId.systemDefault().getId());
       root.put("meds", tableJson("meds"));
@@ -533,6 +545,7 @@ public final class Store extends SQLiteOpenHelper {
       root.put("import_sources", tableJson("import_sources"));
       root.put("import_links", tableJson("import_links"));
       root.put("reminder_mutes", tableJson("reminder_mutes"));
+      root.put("dose_mutes", tableJson("dose_mutes"));
       db.setTransactionSuccessful();
       return root;
     } finally {
@@ -564,8 +577,9 @@ public final class Store extends SQLiteOpenHelper {
   }
 
   public void importJson(JSONObject root) throws JSONException {
+    int version = root.optInt("version");
     if (!"dose-backup".equals(root.optString("format"))
-        || !Arrays.asList(1, 2, 3, 4).contains(root.optInt("version")))
+        || version < 1 || version > BACKUP_VERSION)
       throw new IllegalArgumentException("Arquivo de backup incompatível.");
     JSONArray meds = root.getJSONArray("meds"), doses = root.getJSONArray("doses");
     if (meds.length() > 500 || doses.length() > 100000)
@@ -673,10 +687,26 @@ public final class Store extends SQLiteOpenHelper {
           || !mutedDays.add(medId + ":" + day))
         throw new IllegalArgumentException("Cancelamento de lembrete inválido no backup.");
     }
+    JSONArray doseMutes = root.has("dose_mutes") ? root.getJSONArray("dose_mutes") : new JSONArray();
+    if (doseMutes.length() > 100000) throw new IllegalArgumentException("Backup muito grande.");
+    Set<String> mutedDoses = new HashSet<>();
+    for (int i = 0; i < doseMutes.length(); i++) {
+      JSONObject mute = doseMutes.getJSONObject(i);
+      long medId = mute.getLong("med_id");
+      String key = mute.getString("local_key");
+      String[] parts = key.split("@", -1);
+      if (!ids.contains(medId)
+          || parts.length != 2
+          || !LocalDate.parse(parts[0]).toString().equals(parts[0])
+          || !LocalTime.parse(parts[1], ScheduleRules.CLOCK).format(ScheduleRules.CLOCK).equals(parts[1])
+          || !mutedDoses.add(medId + ":" + key))
+        throw new IllegalArgumentException("Cancelamento de dose inválido no backup.");
+    }
     SQLiteDatabase db = getWritableDatabase();
     db.beginTransaction();
     try {
       db.delete("reminder_mutes", null, null);
+      db.delete("dose_mutes", null, null);
       db.delete("import_links", null, null);
       db.delete("import_sources", null, null);
       db.delete("doses", null, null);
@@ -733,6 +763,7 @@ public final class Store extends SQLiteOpenHelper {
       restoreTable(db, "import_sources", sources, new String[] {"id", "label", "created", "data"});
       restoreTable(db, "import_links", links, new String[] {"source_id", "item_key", "med_id"});
       restoreTable(db, "reminder_mutes", mutes, new String[] {"med_id", "day"});
+      restoreTable(db, "dose_mutes", doseMutes, new String[] {"med_id", "local_key"});
       db.setTransactionSuccessful();
     } finally {
       db.endTransaction();

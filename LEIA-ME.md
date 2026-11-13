@@ -4,11 +4,11 @@ Aplicativo nativo em português para organizar medicamentos e lembrar os horári
 
 ## Atualizar de versões anteriores
 
-Abra o APK 1.7.5 e escolha **Atualizar** para preservar seus medicamentos, histórico, estoque e preferências. A aba Hoje permite adiar doses pendentes antes de o alarme tocar.
+Abra o APK 1.7.6 e escolha **Atualizar** para preservar seus medicamentos, histórico, estoque e preferências. A aba Hoje permite cancelar o lembrete de uma dose pelo horário selecionado.
 
 ## Instalar e começar
 
-1. No celular, abra `Dose-1.7.5.apk` e siga a instalação. Se o Android solicitar, autorize a instalação de apps pela fonte usada para abrir o arquivo.
+1. No celular, abra `Dose-1.7.6.apk` e siga a instalação. Se o Android solicitar, autorize a instalação de apps pela fonte usada para abrir o arquivo.
 2. Abra o Dose e toque em **Cadastrar medicamento** ou **Remédios → Novo medicamento**.
 3. Informe nome, concentração se desejar, quantidade por dose, unidade, horários, dias da semana e período. Use os horários da sua prescrição.
 4. Na aba **Alertas**, autorize **Notificações**, **Alarmes e lembretes**, **Tela cheia na tela bloqueada** e **Tela cheia com o celular em uso**. Esta última abre a autorização do Android para aparecer sobre outros apps. Se usar Não perturbe, permita alarmes no modo ativo. Confira também a configuração de bateria.
@@ -48,7 +48,7 @@ Após a ativação, **Alertas → Backup e Google Drive** mostra a conta conecta
 
 **Abrir opções de arquivo** mantém a exportação e restauração por arquivos já disponíveis. Esse fluxo usa o seletor Android e os locais que o aparelho disponibilizar; não solicita uma conta Google. Também preserva o destino salvo da versão 1.6, sua cópia local de recuperação e a cópia opcional da conta Android. A confirmação de gravação por um provedor de arquivos não equivale à confirmação de recebimento pelo servidor Google.
 
-O backup inclui medicamentos, histórico, estoque, relatórios, aparência, preferências e cancelamentos por dia. Continua na versão 4 e aceita versões 1 a 4, com limite de 20 MB. A restauração não desconta estoque novamente nem dispara avisos retroativos. Autorizações Google, tokens, URIs persistentes e ativação do diário não entram no arquivo portátil.
+O backup inclui medicamentos, histórico, estoque, relatórios, aparência, preferências e cancelamentos de lembretes. A versão 5 do formato restaura arquivos das versões 1 a 5, com limite de 20 MB. A restauração preserva o estoque registrado e só agenda avisos futuros. Autorizações Google, tokens, URIs persistentes e ativação do diário são configurações locais.
 
 ## Registrar uma tomada na aba Hoje
 
@@ -58,11 +58,11 @@ Depois de confirmar, a dose aparece como **Tomado**, com o horário real, e o pr
 
 Doses de dias futuros não oferecem esse botão. Para uma dose que já aparece como **Sem registro**, use **Já tomei • registrar horário** e informe quando ocorreu a tomada.
 
-## Cancelar lembretes somente em um dia
+## Cancelar o lembrete de uma dose
 
-No cartão de uma dose, toque em **Cancelar lembretes do dia**. Confira o medicamento e a data e confirme em **Cancelar neste dia**. O cancelamento vale para todos os horários **desse medicamento nessa data**. Não cancela outros remédios nem as doses dos próximos dias.
+No cartão da dose, toque em **Cancelar lembrete**, confira a data e o horário e confirme em **Cancelar aviso**. O cartão mostra **Lembrete cancelado**. A dose continua pendente e aceita registro em **Tomei** no dia previsto.
 
-Os avisos e repetições desse dia são encerrados, sem marcar a dose como tomada ou pulada e sem alterar o estoque. **Tomei** continua disponível. O cartão passa a mostrar **Sem avisos no dia**. O cancelamento fica salvo ao reabrir o app, restaurar um backup ou editar os horários do medicamento, inclusive ao acrescentar horários no mesmo dia.
+Se um remédio tem doses às 8h e às 20h, cancelar o aviso das 8h afeta só aquele horário. A atualização preserva os cancelamentos de dia inteiro que já estavam gravados nas versões anteriores.
 
 ## Importar um relatório MyTherapy
 
@@ -127,7 +127,7 @@ A atualização mantém os cadastros existentes com sua cor anterior. Depois de 
 
 Salvar uma edição com o campo de estoque inalterado mantém os descontos de doses confirmadas enquanto o cadastro estava aberto. Uma nova quantidade digitada continua sendo tratada como ajuste explícito do estoque.
 
-Os próximos lembretes recebem a aparência atualizada. Doses já confirmadas mantêm o desenho e as cores usados na época. O backup versão 4 inclui esses dados e os cancelamentos por dia; aceita restaurações das versões 1, 2 e 3.
+Os próximos lembretes recebem a aparência atualizada. Doses já confirmadas mantêm o desenho e as cores usados na época. Esses dados fazem parte do backup.
 
 ## Samsung / One UI
 
@@ -160,7 +160,7 @@ sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0' 'platform-tools'
 python3 tools/build.py --sdk /caminho/absoluto/android-sdk --test
 ```
 
-Requer JDK 17 ou mais recente com compilador, Python 3 e o SDK oficial. O wrapper baixa o Gradle na primeira execução, e o SDK Google e as dependências são obtidos dos repositórios oficiais. O APK assinado sai em `build/Dose-1.7.5.apk`.
+Requer JDK 17 ou mais recente com compilador, Python 3 e o SDK oficial. O wrapper baixa o Gradle na primeira execução, e o SDK Google e as dependências são obtidos dos repositórios oficiais. O APK assinado sai em `build/Dose-1.7.6.apk`.
 
 `signing/` contém a chave pessoal usada nesta versão e sua configuração local. Guarde essa pasta para assinar futuras atualizações compatíveis com o APK instalado. A chave e sua senha pertencem à entrega pessoal; a pasta `signing/` não é versionada. Guarde a chave para gerar atualizações da instalação existente. A compilação usa a chave pessoal quando a pasta signing/ está presente. Sem a chave original, um novo APK não pode atualizar a instalação existente.
 
@@ -204,4 +204,4 @@ O projeto está publicado em [wberaldo/dose](https://github.com/wberaldo/dose), 
 - Não perturbe e políticas: https://developer.android.com/reference/android/app/NotificationManager
 - Restrições para tela cheia: https://developer.android.com/about/versions/14/behavior-changes-14
 
-Versão 1.7.5. Entrega pessoal instalável.
+Versão 1.7.6. Entrega pessoal instalável.

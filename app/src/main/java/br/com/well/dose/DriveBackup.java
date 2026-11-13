@@ -119,7 +119,8 @@ public final class DriveBackup {
         bytes = read(c, uri, signal);
         JSONObject root = new JSONObject(new String(bytes, "UTF-8"));
         int version = root.optInt("version");
-        if (!"dose-backup".equals(root.optString("format")) || version < 1 || version > 4)
+        if (!"dose-backup".equals(root.optString("format"))
+            || version < 1 || version > Store.BACKUP_VERSION)
           throw new IOException("Arquivo de backup inválido.");
         root.getJSONArray("meds");
         root.getJSONArray("doses");

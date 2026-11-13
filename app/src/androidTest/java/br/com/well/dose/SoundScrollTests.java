@@ -126,7 +126,7 @@ public final class SoundScrollTests extends Instrumentation {
     NotificationManager nm = (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
     nm.cancelAll();
     Store db = Store.get(c);
-    for (String table : new String[] {"import_links", "reminder_mutes", "import_sources", "doses", "meds"})
+    for (String table : new String[] {"import_links", "reminder_mutes", "dose_mutes", "import_sources", "doses", "meds"})
       db.getWritableDatabase().delete(table, null, null);
     Prefs.get(c).edit().clear().putBoolean("alarm_profile_130", true).putBoolean("fullscreen", false).commit();
     for (int i = 0; i < 15; i++) {

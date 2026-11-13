@@ -403,7 +403,7 @@ public final class MainActivity extends Activity {
         break;
       default:
         if (d.reminderCancelled) {
-          status = "Sem avisos no dia";
+          status = "Lembrete cancelado";
           bg = Ui.LINE;
           color = Ui.MUTED;
         } else if (d.snoozed) {
@@ -473,9 +473,10 @@ public final class MainActivity extends Activity {
       Ui.add(card, Ui.button(this, "Já tomei • registrar horário", false, () -> recordTime(d)), 14);
     if (d.actionable() && !d.reminderCancelled) {
       TextView cancel =
-          Ui.button(this, "Cancelar lembretes do dia", false, () -> cancelReminders(d));
+          Ui.button(this, "Cancelar lembrete", false, () -> cancelReminder(d));
       cancel.setTag("cancel:" + d.id);
-      cancel.setContentDescription("Cancelar lembretes de " + d.name + " em " + doseDate);
+      cancel.setContentDescription(
+          "Cancelar lembrete de " + d.name + " em " + doseDate + " às " + time(d.scheduled));
       Ui.add(card, cancel, 10);
     }
     Ui.add(body, card, 14);
@@ -1030,7 +1031,7 @@ public final class MainActivity extends Activity {
         body,
         Ui.text(
             this,
-            "Dose 1.7.5 • Rotina e lembretes funcionam sem internet.\n"
+            "Dose 1.7.6 • Rotina e lembretes funcionam sem internet.\n"
                 + "Os dados ficam neste aparelho. Faça backups antes de desinstalar. Cadastre"
                 + " apenas os horários da sua prescrição.",
             12,
@@ -1274,21 +1275,20 @@ public final class MainActivity extends Activity {
     }
   }
 
-  private void cancelReminders(Dose d) {
+  private void cancelReminder(Dose d) {
     LocalDate day = Instant.ofEpochMilli(d.scheduled).atZone(ZoneId.systemDefault()).toLocalDate();
     String date = day.format(DateTimeFormatter.ofPattern("d 'de' MMMM", pt));
     new AlertDialog.Builder(this)
-        .setTitle("Cancelar lembretes de " + date + "?")
+        .setTitle("Cancelar este lembrete?")
         .setMessage(
             d.name
-                + "\n\nEncerra os avisos de todos os horários deste medicamento nesse dia."
-                + " Você ainda poderá registrar Tomei. O estoque não será alterado."
-                + "\n\nOs outros medicamentos e os próximos dias continuam normalmente.")
+                + "\n" + date + " às " + time(d.scheduled)
+                + "\n\nEncerra os avisos desta dose. Você ainda pode registrar a tomada em Tomei.")
         .setNegativeButton("Voltar", null)
         .setPositiveButton(
-            "Cancelar neste dia",
+            "Cancelar aviso",
             (dialog, which) -> {
-              AlarmEngine.cancelReminders(this, d.medId, day);
+              AlarmEngine.cancelReminder(this, d.id);
               render();
             })
         .show();

@@ -1,3 +1,8 @@
+# 1.7.6 — 12/11/2026
+
+- Cancela o lembrete pelo horário e pela data da dose selecionada.
+- Persiste cancelamentos por dose no banco e no formato de backup 5, com leitura de backups anteriores.
+
 # 1.7.5 — 11/11/2026
 
 - Disponibiliza Adiar desde o início do dia para doses pendentes de hoje com lembrete ativo.

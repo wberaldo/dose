@@ -44,7 +44,8 @@ public final class DeviceTests extends Instrumentation {
       else if ("alarms".equals(mode)) alarmChecks();
       else if ("snooze_time".equals(mode)) snoozeTimeChecks();
       else if ("today".equals(mode)) todayChecks();
-      else if ("cancel_day".equals(mode)) cancelDayChecks();
+      else if ("cancel_dose".equals(mode)) cancelDoseChecks();
+      else if ("legacy_mute_upgrade".equals(mode)) legacyMuteUpgrade();
       else if ("drive_seed".equals(mode)) driveSeed();
       else if ("drive".equals(mode)) driveChecks();
       else if ("drive_job".equals(mode)) driveVerifyJob();
@@ -137,6 +138,8 @@ public final class DeviceTests extends Instrumentation {
     }
     if (db.getReadableDatabase().getVersion() >= 4)
       db.getWritableDatabase().delete("reminder_mutes", null, null);
+    if (db.getReadableDatabase().getVersion() >= 5)
+      db.getWritableDatabase().delete("dose_mutes", null, null);
     db.getWritableDatabase().delete("doses", null, null);
     db.getWritableDatabase().delete("meds", null, null);
     try {
@@ -512,8 +515,8 @@ public final class DeviceTests extends Instrumentation {
                     new java.io.File(c.getFilesDir(), "migration-v1.json").toPath()),
                 "UTF-8"));
     check(
-        db.getReadableDatabase().getVersion() == 4,
-        "atualização migra o banco da versão 1 para 4 sem recriar tabelas");
+        db.getReadableDatabase().getVersion() == 5,
+        "atualização migra o banco da versão 1 para 5 sem recriar tabelas");
     JSONArray meds = old.getJSONArray("meds");
     for (int i = 0; i < meds.length(); i++) {
       JSONObject before = meds.getJSONObject(i);
@@ -769,7 +772,7 @@ public final class DeviceTests extends Instrumentation {
                     new java.io.File(c.getFilesDir(), "migration-v2.json").toPath()),
                 "UTF-8"));
     check(
-        db.getReadableDatabase().getVersion() == 4,
+        db.getReadableDatabase().getVersion() == 5,
         "atualização da versão 1.1.0 aplica a migração aditiva de aparência");
     JSONObject fresh = new JSONObject(db.exportJson().toString());
     boolean allKept = true, defaultStyle = true;
@@ -876,7 +879,7 @@ public final class DeviceTests extends Instrumentation {
     JSONObject backup = db.exportJson();
     db.importJson(new JSONObject(backup.toString()));
     check(
-        backup.getInt("version") == 4
+        backup.getInt("version") == Store.BACKUP_VERSION
             && db.medication(m.id).icon.equals(m.icon)
             && db.medication(m.id).secondaryColor == m.secondaryColor
             && db.dose(taken.id).icon.equals("capsule"),
@@ -1106,8 +1109,9 @@ public final class DeviceTests extends Instrumentation {
           old.getJSONArray(table).toString().equals(fresh.getJSONArray(table).toString()),
           "atualização 1.4.0 preserva integralmente " + table);
     check(
-        db.getReadableDatabase().getVersion() == 4
-            && fresh.getJSONArray("reminder_mutes").length() == 0,
+        db.getReadableDatabase().getVersion() == 5
+            && fresh.getJSONArray("reminder_mutes").length() == 0
+            && fresh.getJSONArray("dose_mutes").length() == 0,
         "nova tabela de cancelamentos começa vazia sem alterar os registros anteriores");
     check(
         !Prefs.fullscreen(c)
@@ -1118,7 +1122,7 @@ public final class DeviceTests extends Instrumentation {
         "atualização mantém as escolhas feitas na versão 1.3.0");
     db.importJson(new JSONObject(old.toString()));
     check(
-        db.exportJson().getInt("version") == 4
+        db.exportJson().getInt("version") == Store.BACKUP_VERSION
             && db.medications().size() == 2
             && db.history().size() == 1,
         "backup versão 3 continua restaurando na versão nova");
@@ -1312,7 +1316,7 @@ public final class DeviceTests extends Instrumentation {
       Dose keepSecond = alarmDue(medication("Manter segundo medicamento do dia"));
       AlarmEngine.tick(c);
       await(() -> alarmPlaying() && noticeExists(cancelFirst.id) && noticeExists(keepSecond.id));
-      AlarmEngine.cancelReminders(c, cancelFirst.medId, LocalDate.parse(cancelFirst.key.substring(0, 10)));
+      AlarmEngine.cancelReminder(c, cancelFirst.id);
       try {
         await(
             () ->
@@ -1337,7 +1341,7 @@ public final class DeviceTests extends Instrumentation {
         throw error;
       }
       check(true, "cancelar um medicamento mantém o aviso e áudio do outro medicamento ativo");
-      AlarmEngine.cancelReminders(c, keepSecond.medId, LocalDate.parse(keepSecond.key.substring(0, 10)));
+      AlarmEngine.cancelReminder(c, keepSecond.id);
       awaitStopped();
       check(
           !noticeExists(keepSecond.id) && !noticeExists(Alerts.SERVICE_ID),
@@ -1872,7 +1876,7 @@ public final class DeviceTests extends Instrumentation {
     Medication med = medication("Medicamento fictício para destino salvo");
     db.maintain(System.currentTimeMillis());
     db.resolve(future(med.id).id, "taken", System.currentTimeMillis());
-    db.cancelReminders(med.id, LocalDate.now());
+    db.cancelReminder(future(med.id).id);
     Prefs.get(c)
         .edit()
         .putString("theme", "dark")
@@ -1909,8 +1913,8 @@ public final class DeviceTests extends Instrumentation {
             && initial.getJSONObject("settings").getString("theme").equals("dark"),
         "primeiro backup grava cadastro, estoque e preferências completos no destino");
     check(
-        initial.getJSONArray("reminder_mutes").length() == 1 && DriveBackup.hasLocalCopy(c),
-        "destino e cópia local preservam cancelamentos do dia");
+        initial.getJSONArray("dose_mutes").length() == 1 && DriveBackup.hasLocalCopy(c),
+        "destino e cópia local preservam o cancelamento da dose");
     long before = DriveBackup.prefs(c).getLong("saved_at", 0);
     db.replenish(med.id, 17);
     Activity activity =
@@ -2137,7 +2141,7 @@ public final class DeviceTests extends Instrumentation {
     Medication med = medication("Exemplo para backup da conta");
     db.maintain(System.currentTimeMillis());
     db.resolve(future(med.id).id, "taken", System.currentTimeMillis());
-    db.cancelReminders(med.id, LocalDate.now());
+    db.cancelReminder(future(med.id).id);
     Medication late = medication("Exemplo de lembrete no aparelho anterior");
     late.times =
         LocalTime.now().minusMinutes(10).format(ScheduleRules.CLOCK)
@@ -2163,10 +2167,10 @@ public final class DeviceTests extends Instrumentation {
     byte[] snapshot = BackupFiles.snapshot(c);
     JSONObject root = new JSONObject(new String(snapshot, "UTF-8"));
     check(
-        root.getInt("version") == 4
+        root.getInt("version") == Store.BACKUP_VERSION
             && root.getJSONObject("settings").getString("theme").equals("dark")
-            && root.getJSONArray("reminder_mutes").length() == 1,
-        "arquivo inclui dados completos, cancelamentos do dia e preferências escolhidas");
+            && root.getJSONArray("dose_mutes").length() == 1,
+        "arquivo inclui dados completos, cancelamentos por dose e preferências escolhidas");
     check(
         !root.getJSONObject("settings").has("test_at")
             && !root.getJSONObject("settings").has("ringing_until")
@@ -2198,12 +2202,12 @@ public final class DeviceTests extends Instrumentation {
             && db.history().size() == 1,
         "restauração recupera medicamentos, estoque e histórico sem descontar novamente");
     check(
-        db.exportJson().getJSONArray("reminder_mutes").length() == 1
+        db.exportJson().getJSONArray("dose_mutes").length() == 1
             && Ui.isDark(c)
             && Prefs.interval(c) == 10
             && Prefs.snooze(c) == 30
             && Prefs.privateAlarm(c),
-        "restauração recupera dias cancelados, aparência e opções dos lembretes");
+        "restauração recupera doses canceladas, aparência e opções dos lembretes");
     check(
         !Prefs.get(c).contains("test_at")
             && !Prefs.get(c).contains("ringing_until")
@@ -2307,7 +2311,7 @@ public final class DeviceTests extends Instrumentation {
     db.save(med, System.currentTimeMillis());
     db.maintain(System.currentTimeMillis());
     db.resolve(future(med.id).id, "taken", System.currentTimeMillis());
-    db.cancelReminders(med.id, LocalDate.now());
+    db.cancelReminder(future(med.id).id);
     Prefs.get(c)
         .edit()
         .putString("theme", "dark")
@@ -2336,8 +2340,8 @@ public final class DeviceTests extends Instrumentation {
         "transporte Android recupera histórico confirmado");
     try {
       check(
-          db.exportJson().getJSONArray("reminder_mutes").length() == 1,
-          "transporte Android recupera cancelamentos apenas no dia escolhido");
+          db.exportJson().getJSONArray("dose_mutes").length() == 1,
+          "transporte Android recupera cancelamentos apenas na dose escolhida");
     } catch (Exception error) {
       throw new AssertionError(error);
     }
@@ -2376,7 +2380,7 @@ public final class DeviceTests extends Instrumentation {
   private void todayUiVerify() {
     Dose d = db.dose(Prefs.get(c).getLong("today_ui_dose", 0));
     if ("cancelled".equals(args.getString("expected"))) {
-      check(d.reminderCancelled && d.nextAlert == 0, "toque na agenda cancela os avisos do dia");
+      check(d.reminderCancelled && d.nextAlert == 0, "toque na agenda cancela o aviso da dose");
       check(
           d.status.equals("pending") && d.actual == 0 && db.medication(d.medId).stock == 30,
           "cancelamento pela interface preserva tomada e estoque");
@@ -2400,89 +2404,120 @@ public final class DeviceTests extends Instrumentation {
     }
   }
 
-  private void cancelDayChecks() throws Exception {
+  private void legacyMuteUpgrade() throws Exception {
+    JSONObject previous = new JSONObject(new String(
+        java.nio.file.Files.readAllBytes(new java.io.File(c.getFilesDir(), "legacy-mute-v4.json").toPath()),
+        "UTF-8"));
+    JSONObject mute = previous.getJSONArray("reminder_mutes").getJSONObject(0);
+    LocalDate day = LocalDate.parse(mute.getString("day"));
+    check(db.getReadableDatabase().getVersion() == 5
+            && db.exportJson().getJSONArray("dose_mutes").length() == 0,
+        "atualização real da 1.7.5 cria a tabela de cancelamentos por dose");
+    check(db.forDate(day).size() == 2
+            && db.forDate(day).stream().allMatch(d -> d.reminderCancelled && d.nextAlert == 0),
+        "atualização preserva os cancelamentos de dia inteiro gravados antes");
+    BackupFiles.restore(c, previous.toString().getBytes("UTF-8"));
+    check(db.forDate(day).size() == 2
+            && db.forDate(day).stream().allMatch(d -> d.reminderCancelled && d.nextAlert == 0),
+        "backup versão 4 restaura o cancelamento antigo");
+  }
+
+  private void cancelDoseChecks() throws Exception {
     clear();
-    LocalDate day = LocalDate.now();
-    Medication med = medication("Remédio de exemplo para cancelar no dia");
-    med.times =
-        LocalTime.now().plusMinutes(15).format(ScheduleRules.CLOCK)
-            + ","
-            + LocalTime.now().plusMinutes(60).format(ScheduleRules.CLOCK);
-    db.save(med, System.currentTimeMillis());
+    long now = System.currentTimeMillis();
+    LocalDate day = LocalDate.now().plusDays(1);
+    Medication med = medication("Remédio de exemplo com duas doses");
+    med.times = "08:00,20:00";
+    db.save(med, now);
     Medication other = medication("Outro remédio de exemplo");
-    db.maintain(System.currentTimeMillis());
-    Dose target =
-        db.forDate(day).stream().filter(d -> d.medId == med.id && d.actionable()).findFirst().get();
-    List<Dose> tomorrow = db.forDate(day.plusDays(1));
+    db.maintain(now);
+    List<Dose> doses = db.doses("med_id=? AND local_key LIKE ?", new String[] {"" + med.id, day + "@%"}, "scheduled");
+    check(doses.size() == 2, "dois horários do mesmo medicamento estão programados");
+    Dose target = doses.get(0), sibling = doses.get(1);
+    Dose anotherMed = db.forDate(day).stream().filter(d -> d.medId == other.id).findFirst().get();
+    Dose nextDay = db.forDate(day.plusDays(1)).stream().filter(d -> d.medId == med.id).findFirst().get();
     Activity main =
         startActivitySync(
             new Intent(c, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
     try {
       waitForIdleSync();
-      runOnMainSync(
-          () ->
-              check(
-                  main.getWindow().getDecorView().findViewWithTag("cancel:" + target.id) != null,
-                  "agenda oferece cancelar os lembretes do medicamento no dia"));
-      AlarmEngine.cancelReminders(c, med.id, day);
+      String date = day.format(java.time.format.DateTimeFormatter.ofPattern(
+          "d 'de' MMMM", Locale.forLanguageTag("pt-BR")));
+      runOnMainSync(() -> views(main.getWindow().getDecorView()).stream()
+          .filter(v -> date.contentEquals(String.valueOf(v.getContentDescription())))
+          .findFirst().orElseThrow(() -> new AssertionError("Dia ausente")).performClick());
+      waitForIdleSync();
+      runOnMainSync(() -> {
+        View cancel = main.getWindow().getDecorView().findViewWithTag("cancel:" + target.id);
+        check(cancel != null, "agenda oferece cancelar o lembrete de um horário");
+        cancel.performClick();
+      });
+      waitForIdleSync();
+      runOnMainSync(() -> visibleText("Voltar").performClick());
+      waitForIdleSync();
+      check(!db.dose(target.id).reminderCancelled, "voltar da confirmação preserva o lembrete");
+      runOnMainSync(() -> main.getWindow().getDecorView().findViewWithTag("cancel:" + target.id).performClick());
+      waitForIdleSync();
+      runOnMainSync(() -> {
+        check(visibleText(med.name + "\n" + date + " às 08:00"
+                + "\n\nEncerra os avisos desta dose. Você ainda pode registrar a tomada em Tomei.")
+                .isShown(),
+            "confirmação identifica o remédio, o dia e o horário escolhido");
+        visibleText("Cancelar aviso").performClick();
+      });
       await(() -> db.dose(target.id).reminderCancelled);
       check(
-          db.forDate(day).stream()
-              .filter(d -> d.medId == med.id && d.actionable())
-              .allMatch(d -> d.reminderCancelled && d.nextAlert == 0 && !d.snoozed),
-          "cancelamento abrange todos os horários do medicamento somente no dia escolhido");
+          db.dose(target.id).nextAlert == 0 && !db.dose(target.id).snoozed
+              && !db.dose(sibling.id).reminderCancelled && db.dose(sibling.id).nextAlert == sibling.nextAlert,
+          "cancelar às 08:00 preserva o alarme das 20:00 do mesmo remédio");
       check(
           db.medication(med.id).stock == 30
               && db.dose(target.id).actual == 0
               && db.dose(target.id).status.equals("pending"),
-          "cancelar o lembrete não registra tomada, dose pulada ou desconto de estoque");
+          "dose cancelada continua pendente e com o mesmo estoque");
       check(
-          db.forDate(day).stream()
-              .filter(d -> d.medId == other.id && d.actionable())
-              .allMatch(d -> !d.reminderCancelled && d.nextAlert > 0),
-          "outros medicamentos do mesmo dia mantêm seus lembretes");
-      check(
-          tomorrow.stream()
-              .allMatch(
-                  d -> !db.dose(d.id).reminderCancelled && db.dose(d.id).nextAlert == d.nextAlert),
-          "todos os lembretes de amanhã mantêm os horários anteriores");
+          !db.dose(anotherMed.id).reminderCancelled && db.dose(anotherMed.id).nextAlert == anotherMed.nextAlert
+              && !db.dose(nextDay.id).reminderCancelled && db.dose(nextDay.id).nextAlert == nextDay.nextAlert,
+          "outro medicamento e o mesmo horário do dia seguinte mantêm os avisos");
       waitForIdleSync();
       runOnMainSync(
           () ->
               check(
-                  main.getWindow().getDecorView().findViewWithTag("take:" + target.id) != null
-                      && hasText(main, "Sem avisos no dia"),
-                  "Tomei permanece disponível após cancelar os avisos do dia"));
+                  hasText(main, "Lembrete cancelado")
+                      && main.getWindow().getDecorView().findViewWithTag("cancel:" + sibling.id) != null,
+                  "cartão mostra o cancelamento e mantém o botão no outro horário"));
       check(
-          !db.snooze(target.id, 10, System.currentTimeMillis()),
-          "ação antiga de adiar não reativa um dia cancelado");
-      db.rezone(System.currentTimeMillis());
-      db.maintain(System.currentTimeMillis());
+          !db.snooze(target.id, 10, now) && !db.cancelReminder(target.id),
+          "cancelamento repetido e ação de adiar antiga preservam o estado");
+      db.rezone(now);
+      db.maintain(now);
       check(
-          db.dose(target.id).nextAlert == 0,
-          "reabertura e recálculo de fuso mantêm o cancelamento");
-      med.times += "," + LocalTime.now().plusMinutes(120).format(ScheduleRules.CLOCK);
-      db.save(med, System.currentTimeMillis());
-      db.maintain(System.currentTimeMillis());
+          db.dose(target.id).nextAlert == 0 && db.dose(sibling.id).nextAlert == sibling.nextAlert,
+          "recálculo de fuso mantém somente o cancelamento selecionado");
+      med.times = "08:00,14:00,20:00";
+      db.save(med, now);
+      db.maintain(now);
+      List<Dose> rebuilt = db.forDate(day).stream().filter(d -> d.medId == med.id)
+          .collect(java.util.stream.Collectors.toList());
+      Dose cancelled = rebuilt.get(0), added = rebuilt.get(1), kept = rebuilt.get(2);
       check(
-          db.forDate(day).stream()
-              .filter(d -> d.medId == med.id && d.actionable())
-              .allMatch(d -> d.reminderCancelled && d.nextAlert == 0),
-          "editar cores ou acrescentar horário não reativa os avisos do dia cancelado");
+          rebuilt.size() == 3 && cancelled.id != target.id
+              && cancelled.key.equals(target.key) && cancelled.reminderCancelled && cancelled.nextAlert == 0
+              && !added.reminderCancelled && added.nextAlert == added.scheduled
+              && kept.key.equals(sibling.key) && !kept.reminderCancelled && kept.nextAlert == sibling.nextAlert,
+          "recriar a agenda preserva o cancelamento das 08:00 e agenda o novo horário");
       JSONObject backup = db.exportJson();
-      db.importJson(new JSONObject(backup.toString()));
+      BackupFiles.restore(c, backup.toString().getBytes("UTF-8"));
       db.close();
       db.getWritableDatabase();
-      db.maintain(System.currentTimeMillis());
       check(
-          db.exportJson().getInt("version") == 4
-              && db.exportJson().getJSONArray("reminder_mutes").length() == 1
-              && db.forDate(day).stream()
-                  .filter(d -> d.medId == med.id && d.actionable())
-                  .allMatch(d -> d.reminderCancelled && d.nextAlert == 0),
-          "backup e reabertura preservam medicamento e dia cancelados");
+          backup.getInt("version") == Store.BACKUP_VERSION && backup.getJSONArray("dose_mutes").length() == 1
+              && backup.getJSONArray("reminder_mutes").length() == 0
+              && db.dose(cancelled.id).reminderCancelled && db.dose(cancelled.id).nextAlert == 0
+              && db.dose(kept.id).nextAlert == sibling.nextAlert,
+          "backup e reabertura preservam o cancelamento individual e o outro horário");
       JSONObject broken = new JSONObject(backup.toString());
-      broken.getJSONArray("reminder_mutes").getJSONObject(0).put("med_id", 800000000);
+      broken.getJSONArray("dose_mutes").getJSONObject(0).put("med_id", 800000000);
       boolean rejected = false;
       try {
         db.importJson(broken);
@@ -2490,17 +2525,18 @@ public final class DeviceTests extends Instrumentation {
         rejected = true;
       }
       check(
-          rejected && db.exportJson().getJSONArray("reminder_mutes").length() == 1,
-          "cancelamento inválido no backup é rejeitado antes de substituir dados");
-      Dose toTake =
-          db.forDate(day).stream()
-              .filter(d -> d.medId == med.id && d.actionable())
-              .findFirst()
-              .get();
-      AlarmEngine.action(c, toTake.id, "TAKE");
+          rejected && db.dose(cancelled.id).reminderCancelled,
+          "backup com cancelamento inválido preserva os dados atuais");
+      // Exercise the actual dispatcher at the later dose's scheduled time.
+      db.maintain(kept.scheduled);
+      List<Dose> due = db.claimDue(c, kept.scheduled);
       check(
-          db.dose(toTake.id).status.equals("taken") && db.medication(med.id).stock == 29,
-          "dose com lembretes cancelados ainda aceita registrar a tomada uma única vez");
+          due.stream().anyMatch(d -> d.id == kept.id) && due.stream().noneMatch(d -> d.id == cancelled.id),
+          "despachante entrega o horário das 20:00 após cancelar o das 08:00");
+      AlarmEngine.action(c, cancelled.id, "TAKE");
+      check(
+          db.dose(cancelled.id).status.equals("taken") && db.medication(med.id).stock == 29,
+          "dose com aviso cancelado ainda aceita registrar a tomada");
     } finally {
       runOnMainSync(main::finish);
       clear();

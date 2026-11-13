@@ -2,7 +2,9 @@
 
 Aplicativo Android de uso pessoal para organizar medicamentos, configurar lembretes e registrar tomadas. Interface em português, dados locais e opções de backup por arquivo ou Google Drive.
 
-Versão do aplicativo: **1.7.5**. Pacote: `br.com.well.dose`. Ícone com uma cápsula branca e verde, sem estrela.
+Versão do aplicativo: **1.7.6**. Pacote: `br.com.well.dose`. Ícone com uma cápsula branca e verde, sem estrela.
+
+Em **Hoje**, **Cancelar lembrete** encerra os avisos somente da dose selecionada.
 
 Em **Hoje**, use **Adiar → Escolher horário…** em qualquer momento do dia para reagendar o aviso de uma dose pendente de hoje. Na tela do alarme, use **Adiar até um horário**.
 

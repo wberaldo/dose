@@ -15,7 +15,7 @@ p.add_argument('--port', type=int, default=5560)
 p.add_argument('--adb-port', type=int, default=5038)
 args = p.parse_args()
 sdk = Path(args.sdk).resolve()
-out = ROOT / 'build/validation-1.7.5'
+out = ROOT / 'build/validation-1.7.6'
 out.mkdir(parents=True, exist_ok=True)
 env = {**os.environ, 'ANDROID_SDK_ROOT': str(sdk), 'ANDROID_ADB_SERVER_PORT': str(args.adb_port)}
 adb = sdk / 'platform-tools/adb'
@@ -75,7 +75,7 @@ try:
     ad('shell', 'input', 'keyevent', '224')
     ad('shell', 'wm', 'dismiss-keyguard')
     ad('shell', 'cmd', 'alarm', 'set-timezone', 'America/Sao_Paulo', check=False)
-    print(ad('install', '--no-incremental', '-r', str(ROOT / 'build/Dose-1.7.5.apk')), flush=True)
+    print(ad('install', '--no-incremental', '-r', str(ROOT / 'build/Dose-1.7.6.apk')), flush=True)
     print(ad('install', '--no-incremental', '-r', '-t', str(ROOT / 'build/device-tests/dose-tests.apk')), flush=True)
     ad('shell', 'pm', 'grant', 'br.com.well.dose', 'android.permission.POST_NOTIFICATIONS')
     for operation in ['SCHEDULE_EXACT_ALARM', 'USE_FULL_SCREEN_INTENT', 'SYSTEM_ALERT_WINDOW']:
