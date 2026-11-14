@@ -303,6 +303,14 @@ public final class Store extends SQLiteOpenHelper {
         "status IN ('taken','skipped','missed')", null, "scheduled DESC,id DESC LIMIT 250");
   }
 
+  List<Dose> alertingDoses(long now) {
+    return doses(
+        "status='pending' AND last_alert>0 AND snoozed=0 AND reminder_cancelled=0 AND"
+            + " scheduled<=? AND expires>?",
+        new String[] {"" + now, "" + now},
+        "scheduled,id");
+  }
+
   public void maintain(long now) {
     SQLiteDatabase db = getWritableDatabase();
     db.beginTransaction();
@@ -456,22 +464,45 @@ public final class Store extends SQLiteOpenHelper {
     try {
       Dose d = dose(id);
       if (d == null || !(d.actionable() || "missed".equals(d.status))) return false;
-      ContentValues v = new ContentValues();
-      v.put("status", status);
-      v.put("actual", actual);
-      v.put("next_alert", 0);
-      v.put("snoozed", 0);
-      int changed =
-          db.update("doses", v, "id=? AND status IN ('pending','missed')", new String[] {"" + id});
-      if (changed == 1 && "taken".equals(status))
-        db.execSQL(
-            "UPDATE meds SET stock=MAX(0,stock-?) WHERE id=? AND stock>=0",
-            new Object[] {d.amount, d.medId});
+      boolean changed = updateResolvedDose(db, d, status, actual);
       db.setTransactionSuccessful();
-      return changed == 1;
+      return changed;
     } finally {
       db.endTransaction();
     }
+  }
+
+  List<Long> takeAlertingDoses(Set<Long> displayedIds, long actual) {
+    SQLiteDatabase db = getWritableDatabase();
+    List<Long> taken = new ArrayList<>();
+    db.beginTransaction();
+    try {
+      for (Dose d : alertingDoses(actual)) {
+        if (displayedIds.contains(d.id) && updateResolvedDose(db, d, "taken", actual)) {
+          taken.add(d.id);
+        }
+      }
+      db.setTransactionSuccessful();
+      return taken;
+    } finally {
+      db.endTransaction();
+    }
+  }
+
+  private boolean updateResolvedDose(SQLiteDatabase db, Dose dose, String status, long actual) {
+    ContentValues values = new ContentValues();
+    values.put("status", status);
+    values.put("actual", actual);
+    values.put("next_alert", 0);
+    values.put("snoozed", 0);
+    int changed =
+        db.update("doses", values, "id=? AND status IN ('pending','missed')", new String[] {"" + dose.id});
+    if (changed == 1 && "taken".equals(status)) {
+      db.execSQL(
+          "UPDATE meds SET stock=MAX(0,stock-?) WHERE id=? AND stock>=0",
+          new Object[] {dose.amount, dose.medId});
+    }
+    return changed == 1;
   }
 
   public boolean snooze(long id, int minutes, long now) {

@@ -27,7 +27,7 @@ try:
     ad('shell','wm','size','900x2000');ad('shell','wm','density','360')
     ad('shell','settings','put','system','screen_off_timeout','600000')
     ad('shell','cmd','alarm','set-timezone','America/Sao_Paulo',check=False)
-    print(ad('install','--no-incremental','-r',root/'build/Dose-1.7.6.apk'),flush=True)
+    print(ad('install','--no-incremental','-r',root/'build/Dose-1.7.7.apk'),flush=True)
     print(ad('install','--no-incremental','-r','-t',root/'build/device-tests/dose-tests.apk'),flush=True)
     ad('shell','pm','grant','br.com.well.dose','android.permission.POST_NOTIFICATIONS')
     ad('shell','appops','set','br.com.well.dose','SCHEDULE_EXACT_ALARM','allow')
@@ -60,6 +60,10 @@ try:
     (out/'cancel-dose.txt').write_text(cancel);print(cancel,flush=True)
     if 'INSTRUMENTATION_RESULT: result=PASS' not in cancel:raise RuntimeError('Per-dose reminder cancellation checks failed.')
     summary['cancel_dose']='PASS'
+    batch=ad('shell','am','instrument','-r','-w','-e','mode','take_all',runner,timeout=240)
+    (out/'take-all.txt').write_text(batch);print(batch,flush=True)
+    if 'INSTRUMENTATION_RESULT: result=PASS' not in batch:raise RuntimeError('Batch alarm confirmation checks failed.')
+    summary['take_all']='PASS'
     imports=ad('shell','am','instrument','-r','-w','-e','mode','imports',runner,timeout=240)
     (out/'imports.txt').write_text(imports);print(imports,flush=True)
     if 'INSTRUMENTATION_RESULT: result=PASS' not in imports:raise RuntimeError('Medication merge, import or backup checks failed.')

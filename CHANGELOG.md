@@ -1,3 +1,8 @@
+# 1.7.7 — 14/11/2026
+
+- Adiciona **Tomei todos** na tela cheia quando duas ou mais doses aguardam confirmação.
+- Compacta a lista de medicamentos e mostra no rodapé qual dose está selecionada para as ações individuais.
+
 # 1.7.6 — 12/11/2026
 
 - Cancela o lembrete pelo horário e pela data da dose selecionada.

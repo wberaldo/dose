@@ -43,7 +43,7 @@ public final class RingingService extends Service {
     else c.stopService(new Intent(c, RingingService.class));
   }
 
-  public static void stopCancelledReminders(Context c) {
+  static void refreshActiveReminder(Context c) {
     RingingService current = running;
     if (current == null || current.test) return;
     current.handler.post(

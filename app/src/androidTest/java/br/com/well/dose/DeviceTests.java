@@ -45,6 +45,7 @@ public final class DeviceTests extends Instrumentation {
       else if ("snooze_time".equals(mode)) snoozeTimeChecks();
       else if ("today".equals(mode)) todayChecks();
       else if ("cancel_dose".equals(mode)) cancelDoseChecks();
+      else if ("take_all".equals(mode)) takeAllChecks();
       else if ("legacy_mute_upgrade".equals(mode)) legacyMuteUpgrade();
       else if ("drive_seed".equals(mode)) driveSeed();
       else if ("drive".equals(mode)) driveChecks();
@@ -1636,6 +1637,78 @@ public final class DeviceTests extends Instrumentation {
       throw new AssertionError("Opção de adiamento ausente: " + option);
     });
     waitForIdleSync();
+  }
+
+  private void takeAllChecks() throws Exception {
+    clear();
+    Dose first = alarmDue(medication("Primeira dose para confirmar"));
+    Dose second = alarmDue(medication("Segunda dose para confirmar"));
+    Dose snoozed = alarmDue(medication("Dose adiada"));
+    Dose cancelled = alarmDue(medication("Aviso cancelado"));
+    Dose expired = alarmDue(medication("Dose expirada"));
+    Medication futureMed = medication("Dose futura");
+    long now = System.currentTimeMillis();
+    db.maintain(now);
+    Dose future = future(futureMed.id);
+    db.claimDue(c, now);
+    db.snooze(snoozed.id, 5, now);
+    db.cancelReminder(cancelled.id);
+    ContentValues expiry = new ContentValues();
+    expiry.put("expires", now - 1);
+    db.getWritableDatabase().update("doses", expiry, "id=?", new String[] {"" + expired.id});
+    Set<Long> displayed =
+        new HashSet<>(Arrays.asList(first.id, second.id, snoozed.id, cancelled.id, expired.id, future.id));
+    db.getWritableDatabase()
+        .execSQL(
+            "CREATE TEMP TRIGGER fail_take_all BEFORE UPDATE OF status ON doses WHEN OLD.id="
+                + second.id + " BEGIN SELECT RAISE(ABORT, 'test batch failure'); END");
+    boolean rolledBack = false;
+    try {
+      db.takeAlertingDoses(displayed, now);
+    } catch (android.database.sqlite.SQLiteException expected) {
+      rolledBack = true;
+    } finally {
+      db.getWritableDatabase().execSQL("DROP TRIGGER fail_take_all");
+    }
+    check(rolledBack && db.dose(first.id).actionable() && db.medication(first.medId).stock == 30,
+        "falha ao registrar a segunda dose reverte também a primeira e seu estoque");
+    check(db.takeAlertingDoses(displayed, now).equals(Arrays.asList(first.id, second.id))
+            && db.dose(snoozed.id).snoozed && db.dose(cancelled.id).reminderCancelled
+            && db.dose(expired.id).actual == 0 && db.dose(future.id).actual == 0,
+        "confirmação em lote distingue doses ativas de adiadas, canceladas, vencidas e futuras");
+    check(db.takeAlertingDoses(displayed, now).isEmpty()
+            && db.medication(first.medId).stock == 29 && db.medication(second.medId).stock == 29
+            && db.dose(first.id).actual == now && db.dose(second.id).actual == now,
+        "repetir a operação preserva o estoque e o horário registrado das duas doses");
+
+    clear();
+    Prefs.get(c).edit().putBoolean("alarm_profile_130", true).putBoolean("private", false)
+        .putString("theme", "dark").putInt("repeat_count", 0).commit();
+    Dose shownFirst = alarmDue(medication("Primeiro medicamento"));
+    Dose shownSecond = alarmDue(medication("Segundo medicamento"));
+    AlarmEngine.tick(c);
+    await(() -> noticeExists(shownFirst.id) && noticeExists(shownSecond.id));
+    Activity alarm = startActivitySync(Alerts.openIntent(c, shownFirst.id));
+    runOnMainSync(() -> check(hasText(alarm, "✓  Tomei todos (2)") && hasText(alarm, "Tomei esta dose"),
+        "tela cheia mostra a contagem do lote e a confirmação individual"));
+
+    Dose arrived = alarmDue(medication("Medicamento que chegou depois"));
+    db.claimDue(c, System.currentTimeMillis());
+    Alerts.show(c, db.dose(arrived.id), false);
+    runOnMainSync(() -> visibleText("✓  Tomei todos (2)").performClick());
+    await(() -> !noticeExists(shownFirst.id) && !noticeExists(shownSecond.id));
+    check(db.dose(shownFirst.id).status.equals("taken") && db.dose(shownSecond.id).status.equals("taken")
+            && db.dose(arrived.id).actionable() && noticeExists(arrived.id)
+            && db.medication(arrived.medId).stock == 30,
+        "um toque registra as doses exibidas, recolhe seus avisos e preserva o aviso recém-chegado");
+    runOnMainSync(() -> {
+      check(!hasText(alarm, "✓  Tomei todos (2)") && hasText(alarm, "✓  Tomei este medicamento"),
+          "uma dose restante oferece confirmação individual");
+      visibleText("✓  Tomei este medicamento").performClick();
+    });
+    await(() -> !noticeExists(arrived.id) && alarm.isFinishing());
+    clear();
+    AlarmEngine.refresh(c);
   }
 
   private void snoozeTimeChecks() throws Exception {

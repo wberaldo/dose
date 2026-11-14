@@ -4,11 +4,11 @@ Aplicativo nativo em português para organizar medicamentos e lembrar os horári
 
 ## Atualizar de versões anteriores
 
-Abra o APK 1.7.6 e escolha **Atualizar** para preservar seus medicamentos, histórico, estoque e preferências. A aba Hoje permite cancelar o lembrete de uma dose pelo horário selecionado.
+Abra o APK 1.7.7 e escolha **Atualizar** para preservar seus medicamentos, histórico, estoque e preferências.
 
 ## Instalar e começar
 
-1. No celular, abra `Dose-1.7.6.apk` e siga a instalação. Se o Android solicitar, autorize a instalação de apps pela fonte usada para abrir o arquivo.
+1. No celular, abra `Dose-1.7.7.apk` e siga a instalação. Se o Android solicitar, autorize a instalação de apps pela fonte usada para abrir o arquivo.
 2. Abra o Dose e toque em **Cadastrar medicamento** ou **Remédios → Novo medicamento**.
 3. Informe nome, concentração se desejar, quantidade por dose, unidade, horários, dias da semana e período. Use os horários da sua prescrição.
 4. Na aba **Alertas**, autorize **Notificações**, **Alarmes e lembretes**, **Tela cheia na tela bloqueada** e **Tela cheia com o celular em uso**. Esta última abre a autorização do Android para aparecer sobre outros apps. Se usar Não perturbe, permita alarmes no modo ativo. Confira também a configuração de bateria.
@@ -17,6 +17,12 @@ Abra o APK 1.7.6 e escolha **Atualizar** para preservar seus medicamentos, hist�
 O app inicia vazio. Não importa nem presume medicamentos, doses ou horários pessoais.
 
 Os alarmes começam nos próximos horários após cadastrar ou importar. Um horário que já passou antes da importação não dispara um aviso retroativo; seu registro no relatório original continua disponível em Histórico.
+
+## Confirmar vários lembretes na tela cheia
+
+Quando dois ou mais lembretes aparecem juntos e você já tomou todas as doses da lista, toque em **Tomei todos**. O número no botão indica quantas doses estão na tela. Cada dose entra no Histórico com o horário da confirmação e o estoque correspondente é atualizado.
+
+Para confirmar ou adiar uma dose, selecione o medicamento na lista e use **Tomei esta dose** ou **Adiar** no rodapé.
 
 ## Adiar até um horário
 
@@ -160,7 +166,7 @@ sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0' 'platform-tools'
 python3 tools/build.py --sdk /caminho/absoluto/android-sdk --test
 ```
 
-Requer JDK 17 ou mais recente com compilador, Python 3 e o SDK oficial. O wrapper baixa o Gradle na primeira execução, e o SDK Google e as dependências são obtidos dos repositórios oficiais. O APK assinado sai em `build/Dose-1.7.6.apk`.
+Requer JDK 17 ou mais recente com compilador, Python 3 e o SDK oficial. O wrapper baixa o Gradle na primeira execução, e o SDK Google e as dependências são obtidos dos repositórios oficiais. O APK assinado sai em `build/Dose-1.7.7.apk`.
 
 `signing/` contém a chave pessoal usada nesta versão e sua configuração local. Guarde essa pasta para assinar futuras atualizações compatíveis com o APK instalado. A chave e sua senha pertencem à entrega pessoal; a pasta `signing/` não é versionada. Guarde a chave para gerar atualizações da instalação existente. A compilação usa a chave pessoal quando a pasta signing/ está presente. Sem a chave original, um novo APK não pode atualizar a instalação existente.
 
@@ -204,4 +210,4 @@ O projeto está publicado em [wberaldo/dose](https://github.com/wberaldo/dose), 
 - Não perturbe e políticas: https://developer.android.com/reference/android/app/NotificationManager
 - Restrições para tela cheia: https://developer.android.com/about/versions/14/behavior-changes-14
 
-Versão 1.7.6. Entrega pessoal instalável.
+Versão 1.7.7. Entrega pessoal instalável.

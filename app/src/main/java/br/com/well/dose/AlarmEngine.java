@@ -175,11 +175,23 @@ public final class AlarmEngine {
     }
   }
 
+  static int takeAll(Context c, Set<Long> displayedIds) {
+    synchronized (LOCK) {
+      List<Long> taken = Store.get(c).takeAlertingDoses(displayedIds, System.currentTimeMillis());
+      if (taken.isEmpty()) return 0;
+      for (long id : taken) Alerts.cancel(c, id);
+      RingingService.refreshActiveReminder(c);
+      refresh(c);
+      c.sendBroadcast(new Intent("br.com.well.dose.CHANGED").setPackage(c.getPackageName()));
+      return taken.size();
+    }
+  }
+
   public static boolean snoozeUntil(Context c, long id, long until) {
     synchronized (LOCK) {
       if (!Store.get(c).snoozeUntil(id, until, System.currentTimeMillis())) return false;
       Alerts.cancel(c, id);
-      RingingService.stopCancelledReminders(c);
+      RingingService.refreshActiveReminder(c);
       refresh(c);
       c.sendBroadcast(new Intent("br.com.well.dose.CHANGED").setPackage(c.getPackageName()));
       return true;
@@ -203,7 +215,7 @@ public final class AlarmEngine {
   public static void cancelReminder(Context c, long id) {
     synchronized (LOCK) {
       if (!Store.get(c).cancelReminder(id)) return;
-      RingingService.stopCancelledReminders(c);
+      RingingService.refreshActiveReminder(c);
       refresh(c);
       c.sendBroadcast(new Intent("br.com.well.dose.CHANGED").setPackage(c.getPackageName()));
     }
